@@ -48,7 +48,128 @@
             padding: 20px;
             color: #666;
         }
+
+/* Panel de filtros */
+        .panel-filtros-top {
+            position: fixed;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
         
+        .filtros-details {
+            border: none;
+        }
+        
+        .filtros-summary {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .filtros-summary::-webkit-details-marker {
+            display: none;
+        }
+        
+        .filtros-summary h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .toggle-arrow {
+            font-size: 14px;
+            transition: transform 0.3s ease;
+        }
+        
+        .filtros-details[open] .toggle-arrow {
+            transform: rotate(180deg);
+        }
+        
+        .filtros-content {
+            padding: 20px;
+        }
+        
+        .filtro-grupo {
+            margin-bottom: 15px;
+        }
+        
+        .filtro-grupo label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #555;
+        }
+        
+        .filtro-grupo select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+        
+        .btn-aplicar {
+            width: 100%;
+            padding: 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn-aplicar:hover {
+            background: #45a049;
+        }
+        
+        /* Desktop: Panel lateral izquierdo */
+        @media (min-width: 769px) {
+            .panel-filtros-top {
+                top: 0;
+                left: 0;
+                width: 300px;
+                height: 100vh;
+                overflow-y: auto;
+            }
+            
+            .filtros-summary {
+                display: none;
+            }
+            
+            .filtros-details {
+                border: none;
+            }
+            
+            .filtros-details summary + * {
+                display: block !important;
+            }
+        }
+        
+        /* Móvil: Panel superior colapsable */
+        @media (max-width: 768px) {
+            .panel-filtros-top {
+                top: 0;
+                left: 0;
+                right: 0;
+                width: 100%;
+            }
+            
+            .filtros-summary {
+                display: flex;
+            }
+        }
+
         /* Leyenda del mapa */
         .legend {
             position: absolute;
@@ -79,47 +200,41 @@
             margin-right: 8px;
             border: 1px solid #ccc;
         }
+/* Animación de colapso de leyenda */
+        .legend-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            max-height: 500px;
+            opacity: 1;
+        }
+        
+        .legend-content.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+        
+        .legend-toggle {
+            font-size: 12px;
+            transition: transform 0.3s ease;
+            display: inline-block;
+        }
+        
+        .legend-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+        
+        .legend h4:hover {
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+	/* Ocultar controles de zoom */
+        .leaflet-control-zoom {
+            display: none !important;
+        }
+
     </style>
 </head>
 <body>
-    <!-- Panel de filtros -->
-    <div class="info-panel" style="top: 10px; left: 10px; right: auto; max-width: 350px;">
-        <h2>Filtros</h2>
-        
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px;">
-                Nivel geográfico:
-            </label>
-            <select id="filtro-nivel" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-                <option value="nacional">Nacional</option>
-                <option value="ccaa" selected>Comunidades Autónomas</option>
-                <option value="provincia">Provincias</option>
-                <option value="municipio">Municipios</option>
-            </select>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px;">
-                Periodo:
-            </label>
-            <select id="filtro-periodo" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-                <option value="">Cargando...</option>
-            </select>
-        </div>
-        
-        <div style="margin-bottom: 15px;">
-            <label style="display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px;">
-                Tipo de delito:
-            </label>
-            <select id="filtro-tipologia" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
-                <option value="">Todos los delitos</option>
-            </select>
-        </div>
-        
-        <button id="btn-aplicar" style="width: 100%; padding: 10px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
-            Aplicar filtros
-        </button>
-    </div>
     
     <!-- Panel de información -->
     <div class="info-panel" style="top: 10px; right: 10px;">
@@ -131,7 +246,76 @@
     
     <!-- Mapa -->
     <div id="map"></div>
+
+<!-- Panel de filtros -->
+    <div class="panel-filtros-top">
+        <!-- Header colapsable solo en móvil -->
+        <details class="filtros-details" id="filtros-details" open>
+            <summary class="filtros-summary">
+                <h2>Filtros</h2>
+                <span class="toggle-arrow">▼</span>
+            </summary>
+            
+            <div class="filtros-content">
+                <div class="filtro-grupo">
+                    <label>Nivel geográfico:</label>
+                    <select id="nivel-geo">
+                        <option value="ccaa" selected>Comunidades Autónomas</option>
+                        <option value="provincia">Provincias</option>
+                        <option value="municipio">Municipios</option>
+                        <option value="nacional">Nacional</option>
+                    </select>
+                </div>
+                
+                <div class="filtro-grupo">
+                    <label>Periodo:</label>
+                    <select id="periodo">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                
+                <div class="filtro-grupo">
+                    <label>Tipo de delito:</label>
+                    <select id="tipologia">
+                        <option value="">Todos los delitos</option>
+                    </select>
+                </div>
+                
+                <button id="btn-aplicar" class="btn-aplicar">Aplicar filtros</button>
+            </div>
+        </details>
+    </div>
     
+    <!-- Panel lateral de filtros -->
+    <div class="panel-filtros" id="panel-filtros">
+        <h2>Filtros</h2>
+        
+        <div class="filtro-grupo">
+            <label>Nivel geográfico:</label>
+            <select id="nivel-geo">
+                <option value="ccaa" selected>Comunidades Autónomas</option>
+                <option value="provincia">Provincias</option>
+                <option value="municipio">Municipios</option>
+                <option value="nacional">Nacional</option>
+            </select>
+        </div>
+        
+        <div class="filtro-grupo">
+            <label>Periodo:</label>
+            <select id="periodo">
+                <option value="">Cargando...</option>
+            </select>
+        </div>
+        
+        <div class="filtro-grupo">
+            <label>Tipo de delito:</label>
+            <select id="tipologia">
+                <option value="">Todos los delitos</option>
+            </select>
+        </div>
+        
+        <button id="btn-aplicar" class="btn-aplicar">Aplicar filtros</button>
+    </div>    
     <!-- Leyenda -->
     <div class="legend">
         <h4>Tasa por 1000 hab.</h4>
@@ -161,6 +345,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- Nuestro JavaScript -->
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=5"></script>
 </body>
 </html>

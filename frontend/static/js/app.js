@@ -2,6 +2,17 @@
 const API_URL = window.location.origin;
 const GEOJSON_PATH = '../data/mapas';
 
+// Configuración fija
+const NIVEL = 'ccaa';
+const PERIODO = '2024-06-01';
+const TIPOLOGIA = null; // Total criminalidad
+
+// Variables globales
+let map;
+let capaActual;
+let datosDelitos = {};
+let umbralesToasa = null;
+
 // Diccionario para mapear nombres del GeoJSON a nombres de la API
 const nombresCCAA = {
     'Andalucía': 'ANDALUCÍA',
@@ -21,484 +32,28 @@ const nombresCCAA = {
     'Comunidad Foral de Navarra': 'NAVARRA',
     'País Vasco/Euskadi': 'PAÍS VASCO',
     'La Rioja': 'LA RIOJA',
-    'Ciudad Autónoma de Ceuta': 'CEUTA',
-    'Ciudad Autónoma de Melilla': 'MELILLA'
+    'Ciudad de Ceuta': 'CEUTA',
+    'Ciudad de Melilla': 'MELILLA'
 };
 
-// Diccionario para mapear nombres de provincias GeoJSON -> BD
-const nombresProvincias = {
-    'A Coruña': 'A CORUÑA',
-    'Alacant/Alicante': 'ALICANTE',
-    'Albacete': 'ALBACETE',
-    'Almería': 'ALMERÍA',
-    'Araba/Álava': 'ÁLAVA',
-    'Asturias': 'ASTURIAS',
-    'Badajoz': 'BADAJOZ',
-    'Barcelona': 'BARCELONA',
-    'Bizkaia': 'VIZCAYA',
-    'Burgos': 'BURGOS',
-    'Cantabria': 'CANTABRIA',
-    'Castelló/Castellón': 'CASTELLÓN',
-    'Ceuta': 'CEUTA',
-    'Ciudad Real': 'CIUDAD REAL',
-    'Cuenca': 'CUENCA',
-    'Cáceres': 'CÁCERES',
-    'Cádiz': 'CÁDIZ',
-    'Córdoba': 'CÓRDOBA',
-    'Gipuzkoa': 'GUIPUZCOA',
-    'Girona': 'GIRONA',
-    'Granada': 'GRANADA',
-    'Guadalajara': 'GUADALAJARA',
-    'Huelva': 'HUELVA',
-    'Huesca': 'HUESCA',
-    'Illes Balears': 'BALEARES',
-    'Jaén': 'JAÉN',
-    'La Rioja': 'LA RIOJA',
-    'León': 'LEÓN',
-    'Lleida': 'LLEIDA',
-    'Lugo': 'LUGO',
-    'Madrid': 'MADRID',
-    'Melilla': 'MELILLA',
-    'Murcia': 'MURCIA',
-    'Málaga': 'MÁLAGA',
-    'Navarra': 'NAVARRA',
-    'Ourense': 'OURENSE',
-    'Palencia': 'PALENCIA',
-    'Pontevedra': 'PONTEVEDRA',
-    'Salamanca': 'SALAMANCA',
-    'Segovia': 'SEGOVIA',
-    'Sevilla': 'SEVILLA',
-    'Soria': 'SORIA',
-    'Tarragona': 'TARRAGONA',
-    'Teruel': 'TERUEL',
-    'Toledo': 'TOLEDO',
-    'Valladolid': 'VALLADOLID',
-    'València/Valencia': 'VALENCIA',
-    'Zamora': 'ZAMORA',
-    'Zaragoza': 'ZARAGOZA',
-    'Ávila': 'ÁVILA'
-};
+// Inicializar mapa
+map = L.map('map', {
+    zoomControl: false
+}).setView([40.4168, -3.7038], 6);
 
-// Mapeo de códigos de provincia a CCAA para provincias uniprovinciales
-const provinciaUniprovincialACCAA = {
-    '07': 'BALEARES',      // Baleares
-    '26': 'LA RIOJA',      // La Rioja
-    '28': 'MADRID',        // Madrid
-    '30': 'MURCIA',        // Murcia
-    '31': 'NAVARRA',       // Navarra
-    '33': 'ASTURIAS',      // Asturias
-    '35': 'CANARIAS',      // Las Palmas (parte de Canarias)
-    '38': 'CANARIAS',      // Santa Cruz de Tenerife (parte de Canarias)
-    '39': 'CANTABRIA'      // Cantabria
-};
-
-// Inicializar mapa centrado en España
-const map = L.map('map').setView([40.4168, -3.7038], 6);
-
-// Añadir capa base de OpenStreetMap
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 19
-}).addTo(map);
-
-// Variables globales
-let capaActual = null;
-let datosDelitos = null;
-let datosCCAAFallback = null; // Nuevo: datos de CCAA para provincias uniprovinciales
-let nivelActual = 'ccaa';
-let periodoActual = '2024-06-01';
-let tipologiaActual = null;
-let umbralesToasa = null; // Nuevo: umbrales dinámicos
-
-// Calcular umbrales dinámicos basados en los datos
-function calcularUmbrales(datos) {
-    if (!datos || Object.keys(datos).length === 0) {
-        return { min: 0, q1: 30, q2: 40, q3: 60, max: 80 };
-    }
-    
-    const tasas = Object.values(datos).map(d => d.tasa_por_mil).sort((a, b) => a - b);
-    const n = tasas.length;
-    
-    return {
-        min: tasas[0],
-        q1: tasas[Math.floor(n * 0.2)],  // Percentil 20
-        q2: tasas[Math.floor(n * 0.4)],  // Percentil 40
-        q3: tasas[Math.floor(n * 0.6)],  // Percentil 60
-        q4: tasas[Math.floor(n * 0.8)],  // Percentil 80
-        max: tasas[n - 1]
-    };
-}
-
-// Función para obtener color según tasa por mil habitantes
-function getColor(tasa) {
-    if (!umbralesToasa) {
-        // Valores por defecto si no hay umbrales calculados
-        return tasa > 80  ? '#a50f15' :
-               tasa > 60  ? '#de2d26' :
-               tasa > 40  ? '#fb6a4a' :
-               tasa > 30  ? '#fcae91' :
-                            '#fee5d9';
-    }
-    
-    // Usar umbrales dinámicos
-    return tasa >= umbralesToasa.q4 ? '#a50f15' :  // Top 20%
-           tasa >= umbralesToasa.q3 ? '#de2d26' :  // 60-80%
-           tasa >= umbralesToasa.q2 ? '#fb6a4a' :  // 40-60%
-           tasa >= umbralesToasa.q1 ? '#fcae91' :  // 20-40%
-                                      '#fee5d9';   // Bottom 20%
-}
-
-// Estilo para las geometrías
-function style(feature) {
-    const nombreGeoJSON = feature.properties.NAMEUNIT;
-    const natcode = feature.properties.NATCODE;
-    let clave;
-    let datos = null;
-    
-    // Determinar la clave según el nivel actual
-    if (nivelActual === 'ccaa') {
-        clave = nombresCCAA[nombreGeoJSON];
-        datos = datosDelitos && clave ? datosDelitos[clave] : null;
-    } else if (nivelActual === 'provincia') {
-        // Extraer código de provincia del NATCODE (posiciones 4-5)
-        clave = natcode.substring(4, 6);
-        datos = datosDelitos && clave ? datosDelitos[clave] : null;
-        
-        // Si no hay datos, buscar en CCAA uniprovinciales
-        if (!datos && datosCCAAFallback && provinciaUniprovincialACCAA[clave]) {
-            const ccaa = provinciaUniprovincialACCAA[clave];
-            datos = datosCCAAFallback[ccaa];
-        }
-    } else if (nivelActual === 'municipio') {
-        // Extraer código de municipio del NATCODE (posiciones 6-10, últimos 5 dígitos antes del final)
-        clave = natcode.substring(6, 11);
-        datos = datosDelitos && clave ? datosDelitos[clave] : null;
-    }
-    
-    const tasa = datos ? datos.tasa_por_mil : 0;
-    
-    return {
-        fillColor: getColor(tasa),
-        weight: 0.5,
-        opacity: 0.8,
-        color: 'white',
-        fillOpacity: datos ? 0.7 : 0.1  // Menos opacidad si no hay datos
-    };
-}
-
-// Highlight al pasar el mouse
-function highlightFeature(e) {
-    const layer = e.target;
-    
-    layer.setStyle({
-        weight: 3,
-        color: '#666',
-        fillOpacity: 0.9
-    });
-    
-    layer.bringToFront();
-    updateInfoPanel(layer.feature.properties);
-}
-
-// Reset al salir el mouse
-function resetHighlight(e) {
-    capaActual.resetStyle(e.target);
-    updateInfoPanel();
-}
-
-// Zoom al hacer click
-function zoomToFeature(e) {
-    map.fitBounds(e.target.getBounds());
-}
-
-// Event listeners para cada feature
-function onEachFeature(feature, layer) {
-    layer.on({
-        mouseover: highlightFeature,
-        mouseout: resetHighlight,
-        click: zoomToFeature
-    });
-}
-
-// Actualizar panel de información
-function updateInfoPanel(props) {
-    const infoContent = document.getElementById('info-content');
-    
-    if (props) {
-        const nombreGeoJSON = props.NAMEUNIT;
-        const natcode = props.NATCODE;
-        let clave;
-        let datos = null;
-        let esFallback = false;
-        
-        // Determinar la clave según el nivel actual
-        if (nivelActual === 'ccaa') {
-            clave = nombresCCAA[nombreGeoJSON];
-            datos = datosDelitos && clave ? datosDelitos[clave] : null;
-        } else if (nivelActual === 'provincia') {
-            // Extraer código de provincia del NATCODE
-            clave = natcode.substring(4, 6);
-            datos = datosDelitos && clave ? datosDelitos[clave] : null;
-            
-            // Si no hay datos, buscar en CCAA uniprovinciales
-            if (!datos && datosCCAAFallback && provinciaUniprovincialACCAA[clave]) {
-                const ccaa = provinciaUniprovincialACCAA[clave];
-                datos = datosCCAAFallback[ccaa];
-                esFallback = true;
-            }
-        } else if (nivelActual === 'municipio') {
-            // Extraer código de municipio del NATCODE
-            clave = natcode.substring(6, 11);
-            datos = datosDelitos && clave ? datosDelitos[clave] : null;
-        }
-        
-        if (datos) {
-            const periodoFormato = new Date(periodoActual).toLocaleDateString('es-ES', { 
-                year: 'numeric', 
-                month: 'long' 
-            });
-            
-            const mensajeFallback = esFallback ? 
-                '<p style="font-size: 11px; color: #ff6b6b; margin-top: 5px;">ℹ️ Datos a nivel de comunidad autónoma</p>' : '';
-            
-            infoContent.innerHTML = `
-                <h3>${props.NAMEUNIT}</h3>
-                <p><strong>Total delitos:</strong> ${datos.total_delitos.toLocaleString('es-ES')}</p>
-                <p><strong>Población:</strong> ${datos.poblacion.toLocaleString('es-ES')}</p>
-                <p><strong>Tasa por 1000 hab:</strong> ${datos.tasa_por_mil.toFixed(2)}</p>
-                ${mensajeFallback}
-                <p style="font-size: 11px; color: #666; margin-top: 10px;">
-                    Periodo: ${periodoFormato}
-                </p>
-            `;
-        } else {
-            const mensaje = nivelActual === 'municipio' ? 
-                '<p style="color: #999;">Solo municipios con +20k habitantes</p>' :
-                '<p style="color: #999;">Sin datos disponibles</p>';
-            
-            infoContent.innerHTML = `
-                <h3>${props.NAMEUNIT}</h3>
-                ${mensaje}
-            `;
-        }
-    } else {
-        const nivelTexto = nivelActual === 'ccaa' ? 'comunidad autónoma' : 
-                          nivelActual === 'provincia' ? 'provincia' : 
-                          nivelActual === 'municipio' ? 'municipio' : 'región';
-        infoContent.innerHTML = `<p>Pasa el cursor sobre una ${nivelTexto}</p>`;
-    }
-}
-
-// Mostrar estadísticas nacionales
-function mostrarEstadisticasNacionales() {
-    const infoContent = document.getElementById('info-content');
-    
-    if (datosDelitos && datosDelitos['NACIONAL']) {
-        const datos = datosDelitos['NACIONAL'];
-        const periodoFormato = new Date(periodoActual).toLocaleDateString('es-ES', { 
-            year: 'numeric', 
-            month: 'long' 
-        });
-        
-        const tipologiaTexto = tipologiaActual ? 
-            `<p><strong>Tipo de delito:</strong> ${tipologiaActual}</p>` : 
-            '<p><strong>Tipo:</strong> Todos los delitos</p>';
-        
-        infoContent.innerHTML = `
-            <h2 style="text-align: center; color: #333; margin-bottom: 20px;">📊 España</h2>
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <h3 style="margin: 0 0 10px 0; font-size: 16px; color: #666;">Estadísticas Nacionales</h3>
-                <p style="font-size: 28px; font-weight: bold; margin: 10px 0; color: #2c3e50;">
-                    ${datos.total_delitos.toLocaleString('es-ES')}
-                </p>
-                <p style="font-size: 14px; color: #666; margin: 0;">delitos registrados</p>
-            </div>
-            
-            <div style="margin-top: 15px;">
-                <p><strong>Población:</strong> ${datos.poblacion.toLocaleString('es-ES')} hab.</p>
-                <p><strong>Tasa por 1000 hab:</strong> ${datos.tasa_por_mil.toFixed(2)}</p>
-                ${tipologiaTexto}
-                <p style="font-size: 11px; color: #666; margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
-                    📅 Periodo: ${periodoFormato}
-                </p>
-            </div>
-        `;
-    } else {
-        infoContent.innerHTML = `
-            <h2 style="text-align: center; color: #333;">España</h2>
-            <p style="color: #999; text-align: center; margin-top: 20px;">Sin datos disponibles para este periodo</p>
-        `;
-    }
-}
-
-// Actualizar leyenda con valores dinámicos
-function actualizarLeyenda() {
-    if (!umbralesToasa) return;
-    
-    const leyenda = document.querySelector('.legend');
-    leyenda.innerHTML = `
-        <h4>Tasa por 1000 hab.</h4>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #fee5d9; width: 20px; height: 20px; margin-right: 8px; border: 1px solid #ccc;"></div>
-            <span>< ${umbralesToasa.q1.toFixed(1)}</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #fcae91; width: 20px; height: 20px; margin-right: 8px; border: 1px solid #ccc;"></div>
-            <span>${umbralesToasa.q1.toFixed(1)} - ${umbralesToasa.q2.toFixed(1)}</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #fb6a4a; width: 20px; height: 20px; margin-right: 8px; border: 1px solid #ccc;"></div>
-            <span>${umbralesToasa.q2.toFixed(1)} - ${umbralesToasa.q3.toFixed(1)}</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #de2d26; width: 20px; height: 20px; margin-right: 8px; border: 1px solid #ccc;"></div>
-            <span>${umbralesToasa.q3.toFixed(1)} - ${umbralesToasa.q4.toFixed(1)}</span>
-        </div>
-        <div class="legend-item">
-            <div class="legend-color" style="background: #a50f15; width: 20px; height: 20px; margin-right: 8px; border: 1px solid #ccc;"></div>
-            <span>> ${umbralesToasa.q4.toFixed(1)}</span>
-        </div>
-    `;
-}
-
-// Cargar datos de delitos desde la API
-async function cargarDatosDelitos(nivel, periodo, tipologia) {
-    try {
-        let url = `${API_URL}/api/mapa/delitos/agregado/${nivel}?periodo=${periodo}`;
-        if (tipologia) {
-            url += `&tipologia=${encodeURIComponent(tipologia)}`;
-        }
-        
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        console.log('Datos de delitos cargados:', data);
-        
-        // Crear un mapa de datos por identificador
-        const datosMap = {};
-        data.datos.forEach(item => {
-            let clave;
-            
-            if (nivel === 'ccaa') {
-                // CCAA: "CCAA 01 Andalucía" -> "ANDALUCÍA"
-                clave = item.geo.replace(/^CCAA \d+ /, '').toUpperCase();
-            } else if (nivel === 'provincia') {
-                // Provincia: "Provincia 01 Álava" -> extraer código "01"
-                const match = item.geo.match(/^Provincia (\d+)/);
-                if (match) {
-                    clave = match[1];  // Guardar solo el código: "01", "02", etc.
-                }
-            } else if (nivel === 'municipio') {
-                // Municipio: "01059 Vitoria-Gasteiz" -> extraer código "01059"
-                const match = item.geo.match(/^(\d+)/);
-                if (match) {
-                    clave = match[1];
-                }
-            } else if (nivel === 'nacional') {
-                // Nacional: simplemente "NACIONAL"
-                clave = 'NACIONAL';
-            }
-            
-            if (clave) {
-                datosMap[clave] = item;
-            }
-        });
-        
-        console.log('datosMap creado:', datosMap);
-        return datosMap;
-        
-    } catch (error) {
-        console.error('Error cargando datos de delitos:', error);
-        return null;
-    }
-}
-
-// Cargar GeoJSON según nivel
-async function cargarMapa(nivel) {
-    try {
-        const leyenda = document.querySelector('.legend');
-        
-        // Si es nacional, no cargar mapa, solo mostrar estadísticas
-        if (nivel === 'nacional') {
-            // Eliminar TODAS las capas del mapa
-            map.eachLayer(function (layer) {
-                if (layer instanceof L.GeoJSON) {
-                    map.removeLayer(layer);
-                }
-            });
-            
-            capaActual = null;
-            
-            // Ocultar leyenda
-            if (leyenda) {
-                leyenda.style.display = 'none';
-            }
-            
-            // Resetear vista del mapa
-            map.setView([40.4168, -3.7038], 6);
-            
-            // Mostrar estadísticas nacionales en el panel
-            mostrarEstadisticasNacionales();
-            return;
-        }
-        
-        // Mostrar leyenda para otros niveles
-        if (leyenda) {
-            leyenda.style.display = 'block';
-        }
-        
-        let archivoGeoJSON;
-        switch(nivel) {
-            case 'ccaa':
-                archivoGeoJSON = 'comunidades.geojson';
-                break;
-            case 'provincia':
-                archivoGeoJSON = 'provincias.geojson';
-                break;
-            case 'municipio':
-                archivoGeoJSON = 'municipios.geojson';
-                break;
-            default:
-                archivoGeoJSON = 'comunidades.geojson';
-        }
-        
-        const response = await fetch(`${GEOJSON_PATH}/${archivoGeoJSON}`);
-        const geojson = await response.json();
-        
-        console.log('GeoJSON cargado:', geojson);
-        
-        // Eliminar capa anterior si existe
-        if (capaActual) {
-            map.removeLayer(capaActual);
-        }
-        
-        // Añadir nueva capa al mapa
-        capaActual = L.geoJSON(geojson, {
-            style: style,
-            onEachFeature: onEachFeature
-        }).addTo(map);
-        
-        // IMPORTANTE: Redibujar estilos después de que datosDelitos esté disponible
-        if (datosDelitos) {
-            capaActual.eachLayer(layer => {
-                layer.setStyle(style(layer.feature));
-            });
-        }
-        
-        updateInfoPanel();
-        
-    } catch (error) {
-        console.error('Error cargando GeoJSON:', error);
-    }
-}
-
-// Cargar periodos en el select
+// Cargar periodos desde la API
 async function cargarPeriodos() {
     try {
+	console.log('Intentando cargar periodos...');
         const response = await fetch(`${API_URL}/api/mapa/periodos`);
         const data = await response.json();
         
-        const select = document.getElementById('filtro-periodo');
+        const select = document.getElementById('periodo');
+        if (!select) {
+            console.error('No se encontró el select de periodo');
+            return;
+        }
+        
         select.innerHTML = '';
         
         data.periodos.forEach(periodo => {
@@ -509,24 +64,33 @@ async function cargarPeriodos() {
                 year: 'numeric', 
                 month: 'long' 
             });
-            if (periodo === periodoActual) {
+            if (periodo === PERIODO) {
                 option.selected = true;
             }
             select.appendChild(option);
         });
         
+        console.log('Periodos cargados:', data.periodos.length);
+        
     } catch (error) {
         console.error('Error cargando periodos:', error);
+        console.error('Stack:', error.stack);
     }
 }
 
-// Cargar tipologías en el select
+// Cargar tipologías desde la API
 async function cargarTipologias() {
     try {
+        console.log('Intentando cargar tipologías...');
         const response = await fetch(`${API_URL}/api/mapa/tipologias`);
         const data = await response.json();
         
-        const select = document.getElementById('filtro-tipologia');
+        const select = document.getElementById('tipologia');
+        if (!select) {
+            console.error('No se encontró el select de tipologia');
+            return;
+        }
+        
         select.innerHTML = '<option value="">Todos los delitos</option>';
         
         data.tipologias.forEach(tipologia => {
@@ -536,63 +100,445 @@ async function cargarTipologias() {
             select.appendChild(option);
         });
         
+        console.log('Tipologías cargadas:', data.tipologias.length);
+        
+    } catch (error) {
+        console.error('Error cargando tipologías:', error);
+        console.error('Stack:', error.stack);
+    }
+}
+
+// Cargar datos de delitos
+async function cargarDatos(nivel = 'ccaa', periodo = '2024-06-01', tipologia = null) {
+    try {
+        let url = `${API_URL}/api/mapa/delitos/agregado/${nivel}?periodo=${periodo}`;
+        if (tipologia) {
+            url += `&tipologia=${encodeURIComponent(tipologia)}`;
+        }
+        
+        console.log('Cargando datos desde:', url);
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        // Crear mapa de datos
+        const datosMap = {};
+        data.datos.forEach(item => {
+            let clave;
+            
+            if (nivel === 'ccaa') {
+                // Para CCAA: "CCAA 01 Andalucía" -> "ANDALUCÍA"
+                clave = item.geo.replace(/^CCAA \d+ /, '').toUpperCase();
+            } else if (nivel === 'provincia') {
+                // Para provincias: "Provincia 28 Madrid" -> "MADRID"
+                clave = item.geo.replace(/^Provincia \d+ /, '').toUpperCase();
+            } else if (nivel === 'municipio') {
+                // Para municipios: "28079 Madrid" -> "MADRID"
+                clave = item.geo.replace(/^\d+ /, '').toUpperCase();
+            } else {
+                // Nacional u otros
+                clave = item.geo.toUpperCase();
+            }
+            
+            datosMap[clave] = item;
+        });
+        
+        console.log('Datos cargados:', Object.keys(datosMap).length, 'registros');
+        return datosMap;
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        return {};
+    }
+}
+
+// Calcular umbrales dinámicos
+function calcularUmbrales(datos) {
+    const tasas = Object.values(datos)
+        .map(d => d.tasa_por_mil)
+        .filter(t => t > 0)
+        .sort((a, b) => a - b);
+    
+    const n = tasas.length;
+    if (n === 0) return null;
+    
+    return {
+        min: tasas[0],
+        q1: tasas[Math.floor(n * 0.2)],
+        q2: tasas[Math.floor(n * 0.4)],
+        q3: tasas[Math.floor(n * 0.6)],
+        q4: tasas[Math.floor(n * 0.8)],
+        max: tasas[n - 1]
+    };
+}
+
+// Obtener color según tasa
+function getColor(tasa) {
+    if (!umbralesToasa || tasa === 0) return '#d3d3d3';
+    
+    return tasa >= umbralesToasa.q4 ? '#a50f15' :
+           tasa >= umbralesToasa.q3 ? '#de2d26' :
+           tasa >= umbralesToasa.q2 ? '#fb6a4a' :
+           tasa >= umbralesToasa.q1 ? '#fcae91' :
+                                      '#fee5d9';
+}
+
+// Estilo para las geometrías
+function style(feature) {
+    const nombreGeoJSON = feature.properties.NAMEUNIT;
+    const natcode = feature.properties.NATCODE;
+    
+    let clave;
+    let datos;
+    
+    // Buscar datos según el nivel actual
+    // Primero intentar por nombre normalizado (para CCAA)
+    clave = nombresCCAA[nombreGeoJSON];
+    if (clave && datosDelitos[clave]) {
+        datos = datosDelitos[clave];
+    } else {
+        // Si no encontró, buscar directamente por nombre en datosDelitos
+        Object.keys(datosDelitos).forEach(key => {
+            if (key.includes(nombreGeoJSON.toUpperCase()) || 
+                nombreGeoJSON.toUpperCase().includes(key)) {
+                datos = datosDelitos[key];
+            }
+        });
+    }
+    
+    const tasa = datos ? datos.tasa_por_mil : 0;
+    
+    return {
+        fillColor: getColor(tasa),
+        weight: 1,
+        opacity: 1,
+        color: 'white',
+        fillOpacity: 0.7
+    };
+}
+
+// Eventos de interacción
+function highlightFeature(e) {
+    const layer = e.target;
+    layer.setStyle({
+        weight: 3,
+        color: '#666',
+        fillOpacity: 0.9
+    });
+    layer.bringToFront();
+    updateInfoPanel(layer.feature.properties);
+}
+
+function resetHighlight(e) {
+    capaActual.resetStyle(e.target);
+    updateInfoPanel();
+}
+
+function updateInfoPanel(props) {
+    const infoContent = document.getElementById('info-content');
+    const infoPanel = document.querySelector('.info-panel');
+    
+    if (props) {
+        const nombreGeoJSON = props.NAMEUNIT;
+        
+        // Buscar datos: primero por diccionario CCAA, luego por coincidencia directa
+        let clave = nombresCCAA[nombreGeoJSON];
+        let datos;
+        
+        if (clave && datosDelitos[clave]) {
+            datos = datosDelitos[clave];
+        } else {
+            // Buscar por nombre directo (para provincias y municipios)
+            const nombreBusqueda = nombreGeoJSON.toUpperCase();
+            
+            // Intentar coincidencia exacta
+            if (datosDelitos[nombreBusqueda]) {
+                datos = datosDelitos[nombreBusqueda];
+            } else {
+                // Buscar por coincidencia parcial
+                Object.keys(datosDelitos).forEach(key => {
+                    if (key.includes(nombreBusqueda) || nombreBusqueda.includes(key)) {
+                        datos = datosDelitos[key];
+                    }
+                });
+            }
+        }
+        
+        // Mostrar panel
+        if (infoPanel) {
+            infoPanel.style.display = 'block';
+        }
+        
+        if (datos) {
+            infoContent.innerHTML = `
+                <h3>${nombreGeoJSON}</h3>
+                <p><strong>Total delitos:</strong> ${datos.total_delitos ? datos.total_delitos.toLocaleString('es-ES') : 'N/A'}</p>
+                <p><strong>Población:</strong> ${datos.poblacion ? datos.poblacion.toLocaleString('es-ES') : 'N/A'}</p>
+                <p><strong>Tasa por 1000 hab:</strong> ${datos.tasa_por_mil ? datos.tasa_por_mil.toFixed(2) : 'N/A'}</p>
+            `;
+        } else {
+            infoContent.innerHTML = `
+                <h3>${nombreGeoJSON}</h3>
+                <p style="color: #999;">Sin datos disponibles</p>
+            `;
+        }
+    } else {
+        // Ocultar panel cuando no hay props
+        if (infoPanel && window.innerWidth <= 768) {
+            infoPanel.style.display = 'none';
+        } else if (infoPanel) {
+            infoContent.innerHTML = '<p>Pasa el cursor sobre una región</p>';
+        }
+    }
+}
+
+function onEachFeature(feature, layer) {
+    layer.on({
+        mouseover: highlightFeature,
+        mouseout: resetHighlight
+    });
+}
+
+// Actualizar leyenda
+function actualizarLeyenda() {
+    if (!umbralesToasa) return;
+    
+    const leyenda = document.querySelector('.legend');
+    const esMobile = window.innerWidth <= 768;
+    
+    leyenda.innerHTML = `
+        <h4 id="legend-title" style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+            <span>Tasa por 1000 hab.</span>
+            <span class="legend-toggle ${esMobile ? 'collapsed' : ''}">▼</span>
+        </h4>
+        <div class="legend-content ${esMobile ? 'collapsed' : ''}" id="legend-content">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fee5d9;"></div>
+                <span>< ${umbralesToasa.q1.toFixed(1)}</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fcae91;"></div>
+                <span>${umbralesToasa.q1.toFixed(1)} - ${umbralesToasa.q2.toFixed(1)}</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fb6a4a;"></div>
+                <span>${umbralesToasa.q2.toFixed(1)} - ${umbralesToasa.q3.toFixed(1)}</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #de2d26;"></div>
+                <span>${umbralesToasa.q3.toFixed(1)} - ${umbralesToasa.q4.toFixed(1)}</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #a50f15;"></div>
+                <span>> ${umbralesToasa.q4.toFixed(1)}</span>
+            </div>
+        </div>
+    `;
+    
+    // Añadir evento de toggle
+    setTimeout(() => {
+        const legendTitle = document.getElementById('legend-title');
+        if (legendTitle) {
+            legendTitle.onclick = toggleLegend;
+        }
+    }, 10);
+}
+
+// Toggle leyenda
+function toggleLegend() {
+    const content = document.getElementById('legend-content');
+    const toggle = document.querySelector('.legend-toggle');
+    
+    if (content && toggle) {
+        content.classList.toggle('collapsed');
+        toggle.classList.toggle('collapsed');
+    }
+}
+// Cargar periodos desde la API
+async function cargarPeriodos() {
+    try {
+        const response = await fetch(`${API_URL}/api/mapa/periodos`);
+        const data = await response.json();
+        
+        const select = document.getElementById('periodo');
+        if (!select) {
+            console.error('No se encontró el select de periodo');
+            return;
+        }
+        
+        select.innerHTML = '';
+        
+        data.periodos.forEach(periodo => {
+            const option = document.createElement('option');
+            option.value = periodo;
+            const fecha = new Date(periodo);
+            option.textContent = fecha.toLocaleDateString('es-ES', { 
+                year: 'numeric', 
+                month: 'long' 
+            });
+            if (periodo === PERIODO) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        });
+        
+        console.log('Periodos cargados:', data.periodos.length);
+        
+    } catch (error) {
+        console.error('Error cargando periodos:', error);
+    }
+}
+
+// Cargar tipologías desde la API
+async function cargarTipologias() {
+    try {
+        const response = await fetch(`${API_URL}/api/mapa/tipologias`);
+        const data = await response.json();
+        
+        const select = document.getElementById('tipologia');
+        if (!select) {
+            console.error('No se encontró el select de tipologia');
+            return;
+        }
+        
+        select.innerHTML = '<option value="">Todos los delitos</option>';
+        
+        data.tipologias.forEach(tipologia => {
+            const option = document.createElement('option');
+            option.value = tipologia;
+            option.textContent = tipologia;
+            select.appendChild(option);
+        });
+        
+        console.log('Tipologías cargadas:', data.tipologias.length);
+        
     } catch (error) {
         console.error('Error cargando tipologías:', error);
     }
 }
-
-// Aplicar filtros
-async function aplicarFiltros() {
-    nivelActual = document.getElementById('filtro-nivel').value;
-    periodoActual = document.getElementById('filtro-periodo').value;
-    tipologiaActual = document.getElementById('filtro-tipologia').value || null;
-    
-    console.log('Aplicando filtros:', { nivelActual, periodoActual, tipologiaActual });
-    
-    // Cargar datos del nivel seleccionado
-    datosDelitos = await cargarDatosDelitos(nivelActual, periodoActual, tipologiaActual);
-    
-    // Si es provincia, también cargar datos de CCAA como fallback
-    if (nivelActual === 'provincia') {
-        datosCCAAFallback = await cargarDatosDelitos('ccaa', periodoActual, tipologiaActual);
-    } else {
-        datosCCAAFallback = null;
+// Cargar mapa
+async function cargarMapa(nivel = 'ccaa') {
+    try {
+        let geoJsonFile;
+        
+        if (nivel === 'ccaa') {
+            geoJsonFile = 'comunidades.geojson';
+        } else if (nivel === 'provincia') {
+            geoJsonFile = 'provincias.geojson';
+        } else if (nivel === 'municipio') {
+            geoJsonFile = 'municipios.geojson';
+        } else if (nivel === 'nacional') {
+            console.log('Nivel nacional - sin mapa geográfico');
+            if (capaActual) {
+                map.removeLayer(capaActual);
+                capaActual = null;
+            }
+            return;
+        }
+        
+        const response = await fetch(`${GEOJSON_PATH}/${geoJsonFile}`);
+        const geojson = await response.json();
+        
+        if (capaActual) {
+            map.removeLayer(capaActual);
+        }
+        
+        capaActual = L.geoJSON(geojson, {
+            style: style,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+        
+        console.log('Mapa cargado correctamente:', geoJsonFile);
+    } catch (error) {
+        console.error('Error cargando GeoJSON:', error);
     }
+}
+
+// Aplicar filtros seleccionados
+async function aplicarFiltros() {
+    console.log('Aplicando filtros...');
     
-    // Calcular umbrales dinámicos
+    // Obtener valores seleccionados
+    const nivelSeleccionado = document.getElementById('nivel-geo').value;
+    const periodoSeleccionado = document.getElementById('periodo').value;
+    const tipologiaSeleccionada = document.getElementById('tipologia').value || null;
+    
+    console.log('Filtros:', {
+        nivel: nivelSeleccionado,
+        periodo: periodoSeleccionado,
+        tipologia: tipologiaSeleccionada
+    });
+    
+    // Cargar nuevos datos
+    datosDelitos = await cargarDatos(nivelSeleccionado, periodoSeleccionado, tipologiaSeleccionada);
+    
+    // Calcular umbrales
     umbralesToasa = calcularUmbrales(datosDelitos);
-    console.log('Umbrales calculados:', umbralesToasa);
     
     // Actualizar leyenda
     actualizarLeyenda();
     
     // Recargar mapa
-    await cargarMapa(nivelActual);
+    await cargarMapa(nivelSeleccionado);
+    
+    // Cerrar panel en móvil
+    if (window.innerWidth <= 768) {
+        const details = document.getElementById('filtros-details');
+        if (details) {
+            details.removeAttribute('open');
+        }
+    }
+    
+    console.log('Filtros aplicados correctamente');
 }
 
 // Inicializar aplicación
 async function init() {
     console.log('Inicializando aplicación...');
-    
     // Cargar filtros
     await cargarPeriodos();
     await cargarTipologias();
     
-    // Cargar datos iniciales
-    datosDelitos = await cargarDatosDelitos(nivelActual, periodoActual, tipologiaActual);
+    // Cargar datos
+    datosDelitos = await cargarDatos();
+    console.log('Datos cargados:', Object.keys(datosDelitos).length, 'CCAA');
     
-    // Calcular umbrales iniciales
+    // Calcular umbrales
     umbralesToasa = calcularUmbrales(datosDelitos);
+    
+    // Actualizar leyenda
     actualizarLeyenda();
     
-    // Cargar mapa inicial
-    await cargarMapa(nivelActual);
+    // Cargar mapa
+    await cargarMapa();
     
-    // Event listener para botón
-    document.getElementById('btn-aplicar').addEventListener('click', aplicarFiltros);
+    // Inicializar leyenda colapsada en móvil
+    if (window.innerWidth <= 768) {
+        setTimeout(() => {
+            const content = document.getElementById('legend-content');
+            const toggle = document.querySelector('.legend-toggle');
+            if (content && toggle) {
+                content.classList.add('collapsed');
+                toggle.classList.add('collapsed');
+            }
+        }, 200);
+    }
+    
+    // Event listener para botón aplicar
+    const btnAplicar = document.getElementById('btn-aplicar');
+    if (btnAplicar) {
+        btnAplicar.addEventListener('click', aplicarFiltros);
+        console.log('Listener de aplicar filtros añadido');
+    } else {
+        console.error('No se encontró el botón aplicar filtros');
+    }
     
     console.log('Aplicación inicializada');
 }
 
-// Ejecutar al cargar la página
-init();
+// Ejecutar cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar aplicación
+    init();
+    
+
+});
+
