@@ -1,307 +1,117 @@
-# Criminalidad España - Aplicación Web Interactiva
+# 🗺️ Criminalidad España - Visualización Interactiva
 
-Aplicación web para visualización interactiva de datos de criminalidad en España a diferentes niveles geográficos (Nacional, CCAA, Provincias y Municipios).
+Aplicación web para la visualización interactiva de datos de criminalidad en España con soporte multi-nivel (Nacional, CCAA, Provincias, Municipios).
 
-## 🌐 Acceso
+**🌐 Demo en producción:** https://delitos.hookponent.cc
 
-- **Producción**: https://delitos.hookponent.cc
-- **Local**: http://192.168.0.100:8001
-- **Documentación API**: https://delitos.hookponent.cc/docs
+---
 
 ## 📋 Características
 
-### Niveles Geográficos
-- **Nacional**: Estadísticas agregadas de toda España
-- **Comunidades Autónomas**: 19 CCAA con visualización coroplética
-- **Provincias**: 51 provincias (incluye fallback para provincias uniprovinciales)
-- **Municipios**: ~400 municipios con más de 20,000 habitantes
+### ✅ Versión 2.0 - Actual
 
-### Funcionalidades
-- ✅ **Filtros dinámicos**:
-  - Selección de nivel geográfico
-  - Periodo temporal (2015-2025, datos trimestrales)
-  - Tipología de delito (19 categorías)
-  
-- ✅ **Visualización**:
-  - Mapa interactivo con Leaflet.js
-  - Colores adaptativos según datos
-  - Leyenda dinámica con valores reales
-  - Panel informativo con estadísticas
-  
-- ✅ **Interacción**:
-  - Hover: Resalta región y muestra datos
-  - Click: Zoom a región
-  - Responsive: Funciona en desktop y móvil
+- **Visualización multi-nivel:** Nacional, Comunidades Autónomas, Provincias y Municipios
+- **Filtros dinámicos:** Periodo (2015-2025) y Tipo de delito cargados desde API
+- **Mapa interactivo:** Colores dinámicos basados en percentiles calculados por nivel
+- **Leyenda adaptativa:** Umbrales actualizados automáticamente según filtros
+- **Leyenda colapsable:** Expandible/contraíble en todas las plataformas
+- **Panel de información:** Datos detallados al hacer hover/click en regiones
+- **Responsive:** Panel lateral en desktop, colapsable superior en móvil
+- **Datos actualizados:** Hasta junio 2025
+
+---
 
 ## 🏗️ Arquitectura
 
-### Backend
-- **Framework**: FastAPI 0.109.0
-- **Base de datos**: PostgreSQL (Docker)
-- **ORM**: psycopg2-binary 2.9.9
-- **Puerto**: 8001
-
-### Frontend
-- **Mapa**: Leaflet.js 1.9.4
-- **Estilos**: CSS vanilla
-- **Geometrías**: GeoJSON (comunidades, provincias, municipios)
-
-### Infraestructura
-- **Servidor**: Ubuntu 24
-- **Deployment**: Cloudflare Tunnel
-- **Servicios**: systemd (auto-inicio)
-
-## 📁 Estructura del Proyecto
+### Backend - FastAPI + PostgreSQL
 
 ```
-/home/sergio/criminalidad_app/
-├── backend/
-│   ├── app/
-│   │   ├── __init__.py
-│   │   ├── main.py                 # Aplicación FastAPI principal
-│   │   ├── database.py             # Conexión PostgreSQL
-│   │   └── routes/
-│   │       ├── __init__.py
-│   │       └── mapa.py             # Endpoints de datos
-│   └── requirements.txt
-├── frontend/
-│   ├── index.html                  # Página principal
-│   └── static/
-│       ├── css/
-│       └── js/
-│           └── app.js              # Lógica de la aplicación
-├── data/
-│   └── mapas/
-│       ├── comunidades.geojson     # 19 CCAA
-│       ├── provincias.geojson      # 51 provincias
-│       └── municipios.geojson      # ~8000 municipios
-├── .env                            # Variables de entorno
-└── .venv/                          # Entorno virtual Python
+backend/
+├── app/
+│   ├── main.py          # Aplicación FastAPI principal
+│   ├── database.py      # Conexión PostgreSQL
+│   └── routes/
+│       └── mapa.py      # Endpoints de datos geográficos
+└── requirements.txt
 ```
 
-## 🗄️ Base de Datos
+**Endpoints principales:**
+- `GET /api/mapa/periodos` - Lista de periodos disponibles
+- `GET /api/mapa/tipologias` - Tipos de delitos disponibles
+- `GET /api/mapa/delitos/agregado/{nivel}` - Datos agregados por nivel geográfico
 
-### Tabla Principal: `delitos_aux`
+### Frontend - Leaflet.js + HTML5 nativo
 
-```sql
-CREATE TABLE delitos_aux (
-    id SERIAL PRIMARY KEY,
-    periodo DATE,                   -- Fecha del periodo
-    geo TEXT,                       -- Geografía (Nacional, CCAA, Provincia, Municipio)
-    tipo TEXT,                      -- Tipo de delito
-    valor_acumulado INTEGER,        -- Número de delitos
-    valor NUMERIC,                  -- Valor específico
-    pob INTEGER,                    -- Población
-    tasa NUMERIC,                   -- Tasa por mil habitantes
-    created_at TIMESTAMP,
-    updated_at TIMESTAMP
-);
+```
+frontend/
+├── index.html           # Interfaz principal
+├── static/
+│   └── js/
+│       └── app.js      # Lógica de la aplicación
+└── data/
+    └── mapas/          # GeoJSON files
+        ├── comunidades.geojson
+        ├── provincias.geojson
+        └── municipios.geojson
 ```
 
-### Formato de Geografía
-
-- **Nacional**: `NACIONAL`
-- **CCAA**: `CCAA 01 Andalucía`, `CCAA 09 Cataluña`, etc.
-- **Provincia**: `Provincia 01 Álava`, `Provincia 28 Madrid`, etc.
-- **Municipio**: `50297 Zaragoza`, `01059 Vitoria-Gasteiz`, etc.
-
-### Tablas Auxiliares
-
-- `pob_ccaa`: Población por comunidad autónoma
-- `pob_provincias`: Población por provincia (código `cpro`)
-- `pob_municipios`: Población por municipio
-- `diccionario_municipios`: Mapeo de códigos de municipio
-
-## 🔌 API Endpoints
-
-### GET `/api/mapa/periodos`
-Lista todos los periodos disponibles.
-
-**Respuesta:**
-```json
-{
-  "periodos": [
-    "2025-06-01",
-    "2025-03-01",
-    "2024-12-01",
-    ...
-  ]
-}
-```
-
-### GET `/api/mapa/tipologias`
-Lista todas las tipologías de delitos disponibles.
-
-**Respuesta:**
-```json
-{
-  "tipologias": [
-    "Total Criminalidad",
-    "Homicidios dolosos y asesinatos consumados",
-    "Hurtos",
-    "Robos con violencia e intimidación",
-    ...
-  ]
-}
-```
-
-### GET `/api/mapa/delitos/agregado/{nivel}`
-Obtiene datos agregados por nivel geográfico.
-
-**Parámetros:**
-- `nivel`: `nacional`, `ccaa`, `provincia`, `municipio`
-- `periodo`: Fecha en formato `YYYY-MM-DD` (ej: `2024-06-01`)
-- `tipologia`: Tipo de delito específico (opcional)
-
-**Ejemplo:**
-```bash
-curl "http://localhost:8001/api/mapa/delitos/agregado/ccaa?periodo=2024-06-01"
-```
-
-**Respuesta:**
-```json
-{
-  "nivel": "ccaa",
-  "periodo": "2024-06-01",
-  "tipologia": null,
-  "total_registros": 19,
-  "datos": [
-    {
-      "geo": "CCAA 09 Cataluña",
-      "total_delitos": 401234,
-      "num_tipologias": 18,
-      "poblacion": 8034743,
-      "tasa_por_mil": 49.95
-    },
-    ...
-  ]
-}
-```
-
-## 🎨 Frontend - Detalles Técnicos
-
-### Matching de Códigos Geográficos
-
-#### CCAA
-Usa diccionario de nombres:
-```javascript
-const nombresCCAA = {
-    'Andalucía': 'ANDALUCÍA',
-    'Cataluña/Catalunya': 'CATALUÑA',
-    ...
-};
-```
-
-#### Provincias
-Extrae código de NATCODE (posiciones 4-5):
-```javascript
-// NATCODE: 34132800000 → Código: 28 (Madrid)
-const codigoProvincia = natcode.substring(4, 6);
-```
-
-**Provincias uniprovinciales** (sin datos provinciales propios):
-- Usan datos de CCAA como fallback
-- Muestran mensaje informativo: "ℹ️ Datos a nivel de comunidad autónoma"
-- Códigos: 07 (Baleares), 26 (La Rioja), 28 (Madrid), 30 (Murcia), 31 (Navarra), 33 (Asturias), 39 (Cantabria)
-
-#### Municipios
-Extrae código de NATCODE (posiciones 6-10):
-```javascript
-// NATCODE: 34025050297 → Código: 50297 (Zaragoza)
-const codigoMunicipio = natcode.substring(6, 11);
-```
-
-**Nota**: Solo municipios con +20,000 habitantes tienen datos.
-
-### Colores Dinámicos
-
-Los umbrales de color se calculan automáticamente según los datos actuales:
-
-```javascript
-function calcularUmbrales(datos) {
-    const tasas = Object.values(datos).map(d => d.tasa_por_mil).sort();
-    return {
-        min: tasas[0],
-        q1: tasas[Math.floor(n * 0.2)],  // Percentil 20
-        q2: tasas[Math.floor(n * 0.4)],  // Percentil 40
-        q3: tasas[Math.floor(n * 0.6)],  // Percentil 60
-        q4: tasas[Math.floor(n * 0.8)],  // Percentil 80
-        max: tasas[n - 1]
-    };
-}
-```
-
-Escala de colores (de bajo a alto):
-- `#fee5d9` → Bajo (<20%)
-- `#fcae91` → Medio-bajo (20-40%)
-- `#fb6a4a` → Medio (40-60%)
-- `#de2d26` → Medio-alto (60-80%)
-- `#a50f15` → Alto (>80%)
+---
 
 ## 🚀 Instalación y Configuración
 
-### Requisitos Previos
-- Ubuntu 24 (servidor)
-- Python 3.12+
-- PostgreSQL (Docker)
-- Cloudflare Tunnel
+### Requisitos previos
 
-### 1. Clonar/Copiar el Proyecto
+- Python 3.8+
+- PostgreSQL 13+
+- Datos de criminalidad cargados en PostgreSQL
+
+### 1. Clonar repositorio
 
 ```bash
-# La estructura debe estar en:
-/home/sergio/criminalidad_app/
+git clone https://github.com/sergiovelayos/delitos.git
+cd delitos
 ```
 
-### 2. Configurar Entorno Virtual
+### 2. Configurar backend
 
 ```bash
-cd /home/sergio/criminalidad_app
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r backend/requirements.txt
+cd backend
+python -m venv .venv
+source .venv/bin/activate  # En Windows: .venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-### 3. Configurar Variables de Entorno
+### 3. Variables de entorno
 
-Copiar el archivo de ejemplo y editar con tus credenciales:
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Configurar las siguientes variables:
+Crear `.env` en la raíz:
 
 ```bash
-PG_USER=tu_usuario_postgres
-PG_PASSWORD=tu_password_seguro
+PG_USER=tu_usuario
+PG_PASSWORD=tu_contraseña
 PG_HOST=localhost
 PG_PORT=5432
 PG_DATABASE=criminalidad
 ```
 
-**⚠️ IMPORTANTE**: Nunca subas el archivo `.env` a GitHub. Está incluido en `.gitignore`.
-
-### 4. Iniciar Base de Datos
+### 4. Ejecutar localmente
 
 ```bash
-# PostgreSQL en Docker
-docker start postgres_db
+# Backend
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
 
-# Verificar conexión
-docker exec -it postgres_db psql -U sergio -d criminalidad -c "SELECT COUNT(*) FROM delitos_aux;"
+# Frontend (servir archivos estáticos)
+cd frontend
+python -m http.server 8000
 ```
 
-### 5. Iniciar FastAPI (Manual)
+Acceder a: http://localhost:8000
 
-```bash
-cd /home/sergio/criminalidad_app/backend
-source ../.venv/bin/activate
-uvicorn app.main:app --host 0.0.0.0 --port 8001
-```
+---
 
-### 6. Configurar como Servicio (Recomendado)
+## 🔧 Despliegue en Producción
+
+### Servicio systemd
 
 Crear `/etc/systemd/system/criminalidad.service`:
 
@@ -312,10 +122,10 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=sergio
-WorkingDirectory=/home/sergio/criminalidad_app/backend
-Environment="PATH=/home/sergio/criminalidad_app/.venv/bin"
-ExecStart=/home/sergio/criminalidad_app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
+User=tu_usuario
+WorkingDirectory=/ruta/a/criminalidad_app/backend
+Environment="PATH=/ruta/a/criminalidad_app/.venv/bin"
+ExecStart=/ruta/a/criminalidad_app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8001
 Restart=always
 RestartSec=10
 
@@ -323,189 +133,220 @@ RestartSec=10
 WantedBy=multi-user.target
 ```
 
-**Activar:**
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable criminalidad
 sudo systemctl start criminalidad
-sudo systemctl status criminalidad
 ```
 
-### 7. Configurar Cloudflare Tunnel
+### Cloudflare Tunnel (Recomendado)
 
-Editar `/etc/cloudflared/config.yml`:
+Configuración en `/etc/cloudflared/config.yml`:
 
 ```yaml
-tunnel: 3175b2cb-0a3b-4e06-9ed7-3557b8b7c3e0
-credentials-file: /home/sergio/.cloudflared/3175b2cb-0a3b-4e06-9ed7-3557b8b7c3e0.json
+tunnel: tu-tunnel-id
+credentials-file: /ruta/a/credentials.json
 
 ingress:
-  - hostname: energia.hookponent.cc
-    service: http://127.0.0.1:3000
-  - hostname: delitos.hookponent.cc
+  - hostname: delitos.tudominio.com
     service: http://127.0.0.1:8001
   - service: http_status:404
 ```
 
-**Reiniciar:**
-```bash
-sudo systemctl restart cloudflared
+---
+
+## 🛠️ Resolución de Problemas Técnicos
+
+### Problema 1: Dropdowns no se llenaban en móvil
+
+**Causa:** `DOMContentLoaded` se ejecutaba antes de que los elementos `<select>` existieran en el DOM.
+
+**Solución:**
+- Consolidar todos los event listeners en un único `DOMContentLoaded`
+- Añadir verificaciones `if (element)` antes de manipular elementos
+- Usar `<details>` HTML5 nativo en lugar de JavaScript para el menú colapsable
+
+```javascript
+document.addEventListener('DOMContentLoaded', function() {
+    init();  // Inicializa toda la app cuando el DOM está listo
+});
 ```
 
-### 8. Configurar DNS en Cloudflare
+### Problema 2: Filtros no actualizaban el mapa
 
-En [Cloudflare Dashboard](https://dash.cloudflare.com):
+**Causa:** La función `cargarDatos()` aceptaba parámetros pero usaba constantes fijas.
 
-- **Type**: CNAME
-- **Name**: delitos
-- **Target**: `3175b2cb-0a3b-4e06-9ed7-3557b8b7c3e0.cfargotunnel.com`
-- **Proxy status**: Proxied ☁️
-
-## 🔧 Comandos Útiles
-
-### Ver Logs del Servicio
-```bash
-sudo journalctl -u criminalidad -f
+**Solución antes:**
+```javascript
+async function cargarDatos(nivel, periodo, tipologia) {
+    let url = `${API_URL}/api/mapa/delitos/agregado/${NIVEL}?periodo=${PERIODO}`;
+    // ❌ Usaba NIVEL, PERIODO, TIPOLOGIA (constantes)
+}
 ```
 
-### Reiniciar Servicio
-```bash
-sudo systemctl restart criminalidad
+**Solución después:**
+```javascript
+async function cargarDatos(nivel, periodo, tipologia) {
+    let url = `${API_URL}/api/mapa/delitos/agregado/${nivel}?periodo=${periodo}`;
+    // ✅ Usa los parámetros recibidos
+    if (tipologia) {
+        url += `&tipologia=${encodeURIComponent(tipologia)}`;
+    }
+}
 ```
 
-### Ver Estado del Puerto
-```bash
-sudo lsof -i :8001
+### Problema 3: Panel de información no coincidía con datos filtrados
+
+**Causa:** La función `updateInfoPanel()` solo buscaba en el diccionario `nombresCCAA`, que no funcionaba para provincias/municipios.
+
+**Solución:**
+```javascript
+function updateInfoPanel(props) {
+    const nombreGeoJSON = props.NAMEUNIT;
+    
+    // Primero intentar diccionario CCAA
+    let clave = nombresCCAA[nombreGeoJSON];
+    let datos = datosDelitos[clave];
+    
+    // Si no encuentra, buscar por nombre directo
+    if (!datos) {
+        const nombreBusqueda = nombreGeoJSON.toUpperCase();
+        datos = datosDelitos[nombreBusqueda];
+        
+        // Si aún no encuentra, buscar por coincidencia parcial
+        if (!datos) {
+            Object.keys(datosDelitos).forEach(key => {
+                if (key.includes(nombreBusqueda)) {
+                    datos = datosDelitos[key];
+                }
+            });
+        }
+    }
+    // ... mostrar datos
+}
 ```
 
-### Probar API
-```bash
-# Health check
-curl http://localhost:8001/health
+### Problema 4: Incompatibilidad con Safari/Brave móvil
 
-# Listar periodos
-curl http://localhost:8001/api/mapa/periodos
+**Causa:** Eventos `click` no se disparaban correctamente en iOS.
 
-# Datos de CCAA
-curl "http://localhost:8001/api/mapa/delitos/agregado/ccaa?periodo=2024-06-01"
+**Solución:** Usar elementos HTML5 nativos (`<details>` y `<summary>`) en lugar de JavaScript:
+
+```html
+<details class="filtros-details" open>
+    <summary class="filtros-summary">
+        <h2>Filtros</h2>
+        <span class="toggle-arrow">▼</span>
+    </summary>
+    <div class="filtros-content">
+        <!-- Contenido -->
+    </div>
+</details>
 ```
 
-### Base de Datos
-```bash
-# Conectar a PostgreSQL
-docker exec -it postgres_db psql -U sergio -d criminalidad
+**CSS para desktop vs móvil:**
+```css
+/* Desktop: Siempre abierto */
+@media (min-width: 769px) {
+    .filtros-summary {
+        display: none;
+    }
+}
 
-# Ver registros
-SELECT COUNT(*) FROM delitos_aux;
-SELECT DISTINCT periodo FROM delitos_aux ORDER BY periodo DESC LIMIT 10;
-SELECT DISTINCT tipo FROM delitos_aux ORDER BY tipo;
+/* Móvil: Colapsable nativo */
+@media (max-width: 768px) {
+    .filtros-summary {
+        display: flex;
+    }
+}
 ```
 
-## 📊 Datos
+### Problema 5: Caché del navegador no actualizaba JavaScript
 
-### Fuente
-Datos de criminalidad del Ministerio del Interior de España.
+**Causa:** El navegador cachea agresivamente los archivos `.js`.
 
-### Periodicidad
-- Datos trimestrales (marzo, junio, septiembre, diciembre)
-- Rango: 2015-2025
+**Solución:** Versionado de archivos estáticos:
 
-### Cobertura Geográfica
-- **Nacional**: Agregado de toda España
-- **CCAA**: 19 comunidades autónomas
-- **Provincias**: 51 provincias + Ceuta + Melilla
-- **Municipios**: Solo municipios con población >20,000 habitantes (~400)
-
-### Tipologías de Delitos
-1. Total Criminalidad
-2. Homicidios dolosos y asesinatos consumados
-3. Homicidios dolosos y asesinatos en grado tentativa
-4. Agresión sexual con penetración
-5. Resto de delitos contra la libertad sexual
-6. Delitos contra la libertad e indemnidad sexual
-7. Delitos graves y menos graves de lesiones y riña tumultuaria
-8. Secuestro
-9. Robos con violencia e intimidación
-10. Robos con fuerza en domicilios, establecimientos y otras instalaciones
-11. Sustracciones de vehículos
-12. Hurtos
-13. Daños
-14. Estafas informáticas
-15. Otros ciberdelitos
-16. Subtotal Cibercriminalidad
-17. Subtotal Criminalidad Convencional
-18. Tráfico de drogas
-19. Resto de infracciones penales
-
-## 🐛 Troubleshooting
-
-### El mapa no carga
-1. Verificar que FastAPI está corriendo: `sudo systemctl status criminalidad`
-2. Ver logs: `sudo journalctl -u criminalidad -f`
-3. Probar API localmente: `curl http://localhost:8001/health`
-
-### No aparecen datos
-1. Verificar que PostgreSQL está corriendo: `docker ps | grep postgres`
-2. Probar query: `docker exec -it postgres_db psql -U sergio -d criminalidad -c "SELECT COUNT(*) FROM delitos_aux;"`
-3. Ver logs de FastAPI para errores de conexión
-
-### Cloudflare Tunnel no funciona
-1. Ver estado: `sudo systemctl status cloudflared`
-2. Ver logs: `sudo journalctl -u cloudflared -f`
-3. Verificar DNS en Cloudflare Dashboard
-
-### Provincias sin datos (Madrid, Navarra, etc.)
-**Esperado**: Estas provincias uniprovinciales obtienen datos a nivel de CCAA automáticamente y muestran el mensaje informativo.
-
-### Municipios transparentes
-**Esperado**: Solo municipios con +20,000 habitantes tienen datos. Los demás aparecen transparentes.
-
-## 📈 Futuras Mejoras
-
-- [ ] Tabla exportable con todos los datos (CSV/Excel)
-- [ ] Gráficos de evolución temporal (Chart.js)
-- [ ] Comparativas entre regiones
-- [ ] Heatmap temporal
-- [ ] Búsqueda de municipios
-- [ ] Modo oscuro
-- [ ] Más páginas informativas (metodología, fuentes)
-
-## 👨‍💻 Desarrollo
-
-### Añadir Nuevas Páginas
-
-La aplicación está preparada para múltiples páginas. Para añadir nuevas rutas:
-
-1. Crear HTML en `/home/sergio/criminalidad_app/frontend/`
-2. Actualizar `main.py` para servir la nueva ruta
-3. Ejemplo:
-
-```python
-@app.get("/metodologia")
-async def metodologia():
-    return FileResponse("/home/sergio/criminalidad_app/frontend/metodologia.html")
+```html
+<!-- Incrementar versión en cada deploy -->
+<script src="/static/js/app.js?v=5"></script>
 ```
 
-### Actualizar Datos
+### Problema 6: Normalización de claves entre API y GeoJSON
 
-Para actualizar con nuevos datos del Ministerio del Interior:
+**Causa:** La API devuelve claves como `"CCAA 01 Andalucía"` pero necesitamos `"ANDALUCÍA"` para hacer match con GeoJSON.
 
-1. Procesar datos nuevos al formato de `delitos_aux`
-2. Insertar en PostgreSQL
-3. La aplicación detectará automáticamente nuevos periodos
+**Solución:** Procesamiento diferenciado por nivel:
 
-## 📝 Licencia
-
-Proyecto interno - Datos públicos del Ministerio del Interior de España.
-
-## 🙋 Autor
-
-**Sergio** - Desarrollo completo de la aplicación
-- Backend: FastAPI + PostgreSQL
-- Frontend: Leaflet.js + JavaScript vanilla
-- Deployment: Cloudflare Tunnel + systemd
+```javascript
+data.datos.forEach(item => {
+    let clave;
+    
+    if (nivel === 'ccaa') {
+        clave = item.geo.replace(/^CCAA \d+ /, '').toUpperCase();
+    } else if (nivel === 'provincia') {
+        clave = item.geo.replace(/^Provincia \d+ /, '').toUpperCase();
+    } else if (nivel === 'municipio') {
+        clave = item.geo.replace(/^\d+ /, '').toUpperCase();
+    }
+    
+    datosMap[clave] = item;
+});
+```
 
 ---
 
-**Última actualización**: Diciembre 2025
-**Versión**: 1.0.0
+## 📊 Fuente de Datos
+
+Los datos provienen de los **Balances Trimestrales de Criminalidad** publicados por el Ministerio del Interior de España.
+
+**Fuente oficial:** https://estadisticasdecriminalidad.ses.mir.es/publico/portalestadistico/balances
+
+**Periodo disponible:** 2015 - Junio 2025
+
+---
+
+## 🔮 Roadmap
+
+### Próximas funcionalidades
+- [ ] Gráficos de evolución temporal
+- [ ] Comparativas entre regiones
+- [ ] Exportación de datos (CSV/Excel)
+- [ ] Búsqueda de municipios
+- [ ] Soporte offline con Service Workers
+- [ ] Mapa de calor (heatmap)
+- [ ] Análisis de tendencias
+
+---
+
+## 🤝 Contribuir
+
+1. Fork el proyecto
+2. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
+3. Commit tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
+4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
+5. Abre un Pull Request
+
+---
+
+## 📝 Licencia
+
+Este proyecto es de código abierto. Los datos de criminalidad son propiedad del Ministerio del Interior de España.
+
+---
+
+## 👤 Autor
+
+**Sergio Velayos Fernández**
+
+- LinkedIn: https://www.linkedin.com/in/sergiovelayos/
+- GitHub: https://github.com/sergiovelayos
+
+---
+
+## 🙏 Agradecimientos
+
+- Ministerio del Interior de España por los datos públicos
+- OpenStreetMap por los mapas base
+- Leaflet.js por la biblioteca de mapas
+- FastAPI por el framework backend
