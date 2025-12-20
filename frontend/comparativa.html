@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Criminalidad España - Comparativa</title>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        /* Navegación */
+        .navegacion {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1001;
+            display: flex;
+            gap: 5px;
+            background: white;
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .nav-btn {
+            padding: 8px 16px;
+            border-radius: 5px;
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .nav-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .nav-btn.active {
+            background: #4CAF50;
+            color: white;
+        }
+
+        /* Panel de filtros */
+        .panel-filtros-top {
+            position: fixed;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .filtros-details {
+            border: none;
+        }
+
+        .filtros-summary {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filtros-summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .filtros-summary h2 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .toggle-arrow {
+            font-size: 14px;
+            transition: transform 0.3s ease;
+        }
+
+        .filtros-details[open] .toggle-arrow {
+            transform: rotate(180deg);
+        }
+
+        .filtros-content {
+            padding: 20px;
+        }
+
+        .filtro-grupo {
+            margin-bottom: 15px;
+        }
+
+        .filtro-grupo label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .filtro-grupo select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .btn-comparar {
+            width: 100%;
+            padding: 12px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-comparar:hover {
+            background: #45a049;
+        }
+
+        /* Contenedor del gráfico */
+        .grafico-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin: 20px;
+        }
+
+        .grafico-container h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        /* Mensaje de estado */
+        .estado-mensaje {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        /* Desktop: Panel lateral izquierdo */
+        @media (min-width: 769px) {
+            .panel-filtros-top {
+                top: 0;
+                left: 0;
+                width: 300px;
+                height: 100vh;
+                overflow-y: auto;
+            }
+
+            .filtros-summary {
+                display: none;
+            }
+
+            .filtros-details summary + * {
+                display: block !important;
+            }
+
+            .grafico-container {
+                margin-left: 320px;
+                margin-top: 60px;
+                margin-right: 20px;
+            }
+
+            .chart-wrapper {
+                height: 500px;
+            }
+        }
+
+        /* Móvil: Panel superior colapsable */
+        @media (max-width: 768px) {
+            .panel-filtros-top {
+                top: 50px;
+                left: 0;
+                right: 0;
+                width: 100%;
+            }
+
+            .filtros-summary {
+                display: flex;
+            }
+
+            .grafico-container {
+                margin-top: 80px;
+                margin-left: 10px;
+                margin-right: 10px;
+            }
+
+            .chart-wrapper {
+                height: 300px;
+            }
+
+            .navegacion {
+                top: 5px;
+                padding: 3px;
+            }
+
+            .nav-btn {
+                padding: 6px 12px;
+                font-size: 14px;
+            }
+        }
+
+        /* Leyenda personalizada */
+        .leyenda-grafico {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .leyenda-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .leyenda-color {
+            width: 30px;
+            height: 4px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navegación -->
+    <nav class="navegacion">
+        <a href="index.html" class="nav-btn">Mapa</a>
+        <a href="comparativa.html" class="nav-btn active">Comparativa</a>
+    </nav>
+
+    <!-- Panel de filtros -->
+    <div class="panel-filtros-top">
+        <details class="filtros-details" id="filtros-details" open>
+            <summary class="filtros-summary">
+                <h2>Filtros</h2>
+                <span class="toggle-arrow">▼</span>
+            </summary>
+
+            <div class="filtros-content">
+                <div class="filtro-grupo">
+                    <label>Nivel geográfico:</label>
+                    <select id="nivel-geo">
+                        <option value="ccaa" selected>Comunidades Autónomas</option>
+                        <option value="provincia">Provincias</option>
+                        <option value="municipio">Municipios</option>
+                        <option value="nacional">Nacional</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Ubicación 1:</label>
+                    <select id="ubicacion1">
+                        <option value="">Selecciona nivel primero</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Ubicación 2 (opcional):</label>
+                    <select id="ubicacion2">
+                        <option value="">Sin comparar</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Tipo de delito:</label>
+                    <select id="tipologia">
+                        <option value="">Todos los delitos</option>
+                    </select>
+                </div>
+
+                <button id="btn-comparar" class="btn-comparar">Comparar</button>
+            </div>
+        </details>
+    </div>
+
+    <!-- Contenedor del gráfico -->
+    <div class="grafico-container">
+        <h2>Evolución de Criminalidad</h2>
+        <div class="chart-wrapper">
+            <canvas id="grafico-evolucion"></canvas>
+        </div>
+        <div id="estado-mensaje" class="estado-mensaje">
+            Selecciona una ubicación y pulsa "Comparar"
+        </div>
+        <div class="leyenda-grafico" id="leyenda-grafico" style="display: none;">
+            <div class="leyenda-item">
+                <div class="leyenda-color" style="background: #2c3e50;"></div>
+                <span id="leyenda-1">Ubicación 1</span>
+            </div>
+            <div class="leyenda-item" id="leyenda-2-container" style="display: none;">
+                <div class="leyenda-color" style="background: #e74c3c;"></div>
+                <span id="leyenda-2">Ubicación 2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/comparativa.js?v=1"></script>
+</body>
+</html>

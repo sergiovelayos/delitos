@@ -41,6 +41,12 @@ map = L.map('map', {
     zoomControl: false
 }).setView([40.4168, -3.7038], 6);
 
+// Añadir capa base de OpenStreetMap
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+}).addTo(map);
+
 // Cargar periodos desde la API
 async function cargarPeriodos() {
     try {

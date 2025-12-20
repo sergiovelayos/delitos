@@ -8,7 +8,7 @@ Aplicación web para la visualización interactiva de datos de criminalidad en E
 
 ## 📋 Características
 
-### ✅ Versión 2.0 - Actual
+### ✅ Versión 2.1 - Actual
 
 - **Visualización multi-nivel:** Nacional, Comunidades Autónomas, Provincias y Municipios
 - **Filtros dinámicos:** Periodo (2015-2025) y Tipo de delito cargados desde API
@@ -16,6 +16,10 @@ Aplicación web para la visualización interactiva de datos de criminalidad en E
 - **Leyenda adaptativa:** Umbrales actualizados automáticamente según filtros
 - **Leyenda colapsable:** Expandible/contraíble en todas las plataformas
 - **Panel de información:** Datos detallados al hacer hover/click en regiones
+- **Página de comparativa:** Gráficos de evolución temporal con Chart.js
+- **Comparación entre regiones:** Selecciona hasta 2 ubicaciones para comparar
+- **Tooltips interactivos:** Toca un punto del gráfico para ver detalles (móvil-friendly)
+- **Navegación entre vistas:** Botones para alternar entre Mapa y Comparativa
 - **Responsive:** Panel lateral en desktop, colapsable superior en móvil
 - **Datos actualizados:** Hasta junio 2025
 
@@ -39,15 +43,18 @@ backend/
 - `GET /api/mapa/periodos` - Lista de periodos disponibles
 - `GET /api/mapa/tipologias` - Tipos de delitos disponibles
 - `GET /api/mapa/delitos/agregado/{nivel}` - Datos agregados por nivel geográfico
+- `GET /api/mapa/delitos/evolucion/{nivel}` - Evolución temporal para comparativas
 
-### Frontend - Leaflet.js + HTML5 nativo
+### Frontend - Leaflet.js + Chart.js + HTML5 nativo
 
 ```
 frontend/
-├── index.html           # Interfaz principal
+├── index.html           # Página del mapa interactivo
+├── comparativa.html     # Página de comparación con gráficos
 ├── static/
 │   └── js/
-│       └── app.js      # Lógica de la aplicación
+│       ├── app.js           # Lógica del mapa
+│       └── comparativa.js   # Lógica de gráficos
 └── data/
     └── mapas/          # GeoJSON files
         ├── comunidades.geojson
@@ -308,9 +315,11 @@ Los datos provienen de los **Balances Trimestrales de Criminalidad** publicados 
 
 ## 🔮 Roadmap
 
+### Completado en v2.1
+- [x] Gráficos de evolución temporal
+- [x] Comparativas entre regiones
+
 ### Próximas funcionalidades
-- [ ] Gráficos de evolución temporal
-- [ ] Comparativas entre regiones
 - [ ] Exportación de datos (CSV/Excel)
 - [ ] Búsqueda de municipios
 - [ ] Soporte offline con Service Workers
@@ -349,4 +358,5 @@ Este proyecto es de código abierto. Los datos de criminalidad son propiedad del
 - Ministerio del Interior de España por los datos públicos
 - OpenStreetMap por los mapas base
 - Leaflet.js por la biblioteca de mapas
+- Chart.js por la biblioteca de gráficos
 - FastAPI por el framework backend

@@ -42,6 +42,22 @@ async def root():
     """
     return FileResponse("/home/sergio/criminalidad_app/frontend/index.html")
 
+
+@app.get("/index.html")
+async def index():
+    """
+    Servir página principal (ruta alternativa)
+    """
+    return FileResponse("/home/sergio/criminalidad_app/frontend/index.html")
+
+
+@app.get("/comparativa.html")
+async def comparativa():
+    """
+    Servir página de comparativa
+    """
+    return FileResponse("/home/sergio/criminalidad_app/frontend/comparativa.html")
+
 @app.get("/health")
 async def health_check():
     """
