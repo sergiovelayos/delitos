@@ -91,33 +91,44 @@ async def get_delitos_agregado(
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # CCAA uniprovinciales (para incluir en nivel provincia)
+        ccaa_uniprovinciales = [
+            'CCAA 03 Asturias', 'CCAA 04 Baleares', 'CCAA 06 Cantabria',
+            'CCAA 13 Madrid', 'CCAA 14 Murcia', 'CCAA 15 Navarra',
+            'CCAA 17 La Rioja', 'CCAA 18 Ceuta', 'CCAA 19 Melilla'
+        ]
+
         # Filtro según nivel
         if nivel == 'ccaa':
             geo_filter = "geo LIKE 'CCAA%%'"
         elif nivel == 'provincia':
-            geo_filter = "geo LIKE 'Provincia%%'"
+            # Incluir provincias + CCAA uniprovinciales para poder comparar Madrid con Barcelona
+            ccaa_list = "', '".join(ccaa_uniprovinciales)
+            geo_filter = f"(geo LIKE 'Provincia%%' OR geo IN ('{ccaa_list}'))"
         elif nivel == 'municipio':
             geo_filter = "geo ~ '^[0-9]'"  # Empieza con números (CP)
         else:  # nacional
             geo_filter = "geo = 'NACIONAL'"
         
         # Filtro de tipología
-        tipo_filter = ""
         params = [periodo]
         if tipologia:
             tipo_filter = "AND tipo = %s"
             params.append(tipologia)
-        
-        # Query que agrupa y suma por geografía
+        else:
+            # Sin filtro: usar solo 'Total Criminalidad' para evitar sumar subtotales
+            tipo_filter = "AND tipo = 'Total Criminalidad'"
+
+        # Query que obtiene datos por geografía
         query = f"""
-            SELECT 
+            SELECT
                 geo,
                 SUM(valor_acumulado) as total_delitos,
                 COUNT(DISTINCT tipo) as num_tipologias,
                 MAX(pob) as poblacion,
-                CASE 
+                CASE
                     WHEN MAX(pob) > 0 THEN ROUND((SUM(valor_acumulado)::numeric / MAX(pob) * 1000), 2)
-                    ELSE 0 
+                    ELSE 0
                 END as tasa_por_mil
             FROM delitos_aux
             WHERE periodo = %s
@@ -246,11 +257,13 @@ async def get_evolucion_delitos(
             geografias.append(geo2)
 
         # Filtro de tipología
-        tipo_filter = ""
         params = geografias.copy()
         if tipologia:
             tipo_filter = "AND tipo = %s"
             params.append(tipologia)
+        else:
+            # Sin filtro: usar solo 'Total Criminalidad' para evitar sumar subtotales
+            tipo_filter = "AND tipo = 'Total Criminalidad'"
 
         # Crear placeholders para IN clause
         placeholders = ', '.join(['%s'] * len(geografias))

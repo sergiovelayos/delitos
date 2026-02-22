@@ -63,6 +63,19 @@ logs/
 # Si los GeoJSON son muy pesados, considera subirlos a un CDN
 # data/mapas/*.geojson
 
+# Shapefiles originales del CNIG (muy pesados, se pueden re-descargar)
+data/mapas/shapefiles_cnig/
+data/mapas/*.zip
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+
+# Archivos de macOS
+._*
+.DS_Store
+
 # Backups
 *.bak
 *.backup

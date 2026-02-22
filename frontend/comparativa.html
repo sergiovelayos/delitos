@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Criminalidad España - Comparativa</title>
+    <title>Comparador de Criminalidad en España - Gráficos</title>
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -21,27 +21,88 @@
             min-height: 100vh;
         }
 
+        /* Barra superior fija (título + navegación) */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Título de la app */
+        .titulo-app {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 15px;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #eee;
+        }
+
+        .titulo-app h1 {
+            font-size: 14px;
+            color: #333;
+            margin: 0;
+        }
+
+        .titulo-app .info-toggle {
+            font-size: 12px;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+
+        .titulo-app .info-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .info-expandible {
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            max-height: 200px;
+            padding: 10px 15px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-expandible.collapsed {
+            max-height: 0;
+            padding: 0 15px;
+        }
+
+        .info-expandible p {
+            font-size: 11px;
+            color: #555;
+            line-height: 1.4;
+            margin: 0 0 5px 0;
+        }
+
+        .info-expandible .fuente {
+            font-size: 10px;
+            color: #888;
+            margin: 0;
+        }
+
         /* Navegación */
         .navegacion {
-            position: fixed;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1001;
             display: flex;
+            justify-content: center;
             gap: 5px;
+            padding: 8px;
             background: white;
-            padding: 5px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
         }
 
         .nav-btn {
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 5px;
             text-decoration: none;
             color: #333;
             font-weight: 500;
+            font-size: 14px;
             transition: background 0.2s;
         }
 
@@ -138,6 +199,118 @@
             background: #45a049;
         }
 
+        /* Ubicaciones dinámicas */
+        #ubicaciones-container {
+            margin-bottom: 10px;
+        }
+
+        .ubicacion-grupo {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-left: 3px solid #2c3e50;
+        }
+
+        .ubicacion-grupo[data-ubicacion="2"] { border-left-color: #e74c3c; }
+        .ubicacion-grupo[data-ubicacion="3"] { border-left-color: #3498db; }
+        .ubicacion-grupo[data-ubicacion="4"] { border-left-color: #9b59b6; }
+        .ubicacion-grupo[data-ubicacion="5"] { border-left-color: #f39c12; }
+
+        .ubicacion-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .ubicacion-numero {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ubicacion-titulo {
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            flex: 1;
+        }
+
+        .btn-remove-ubicacion {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 18px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-remove-ubicacion:hover {
+            background: #fee;
+            color: #e74c3c;
+        }
+
+        .ubicacion-grupo .filtro-grupo {
+            margin-bottom: 8px;
+        }
+
+        .ubicacion-grupo .filtro-grupo:last-child {
+            margin-bottom: 0;
+        }
+
+        .ubicacion-grupo .filtro-grupo label {
+            font-size: 12px;
+            margin-bottom: 4px;
+            color: #666;
+        }
+
+        .ubicacion-grupo select {
+            padding: 8px;
+            font-size: 13px;
+        }
+
+        .btn-add-ubicacion {
+            width: 100%;
+            padding: 10px;
+            background: #f0f0f0;
+            color: #666;
+            border: 2px dashed #ccc;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .btn-add-ubicacion:hover {
+            background: #e8f5e9;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .btn-add-ubicacion span {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .btn-add-ubicacion.hidden {
+            display: none;
+        }
+
         /* Contenedor del gráfico */
         .grafico-container {
             background: white;
@@ -165,8 +338,19 @@
             color: #666;
         }
 
+        /* Header móvil oculto por defecto */
+        .filtros-header-mobile {
+            display: none;
+        }
+
         /* Desktop: Panel lateral izquierdo */
         @media (min-width: 769px) {
+            .top-bar {
+                position: relative;
+                box-shadow: none;
+                border-bottom: 1px solid #eee;
+            }
+
             .panel-filtros-top {
                 top: 0;
                 left: 0;
@@ -185,30 +369,119 @@
 
             .grafico-container {
                 margin-left: 320px;
-                margin-top: 60px;
+                margin-top: 20px;
                 margin-right: 20px;
             }
 
             .chart-wrapper {
                 height: 500px;
             }
+
+            .hamburger-btn {
+                display: none !important;
+            }
         }
 
-        /* Móvil: Panel superior colapsable */
+        /* Botón hamburguesa */
+        .hamburger-btn {
+            display: none;
+            background: white;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        /* Overlay para cerrar el menú */
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1001;
+        }
+
+        .menu-overlay.active {
+            display: block;
+        }
+
+        /* Móvil: Menú hamburguesa */
         @media (max-width: 768px) {
+            .hamburger-btn {
+                display: block;
+            }
+
             .panel-filtros-top {
-                top: 50px;
+                position: fixed;
+                top: 0;
+                left: -300px;
+                width: 280px;
+                height: 100vh;
+                overflow-y: auto;
+                transition: left 0.3s ease;
+                z-index: 1002;
+            }
+
+            .panel-filtros-top.open {
                 left: 0;
-                right: 0;
-                width: 100%;
+            }
+
+            .filtros-details {
+                pointer-events: auto;
+            }
+
+            .filtros-details[open] {
+                display: block;
             }
 
             .filtros-summary {
-                display: flex;
+                display: none;
+            }
+
+            .filtros-content {
+                padding-top: 15px;
+            }
+
+            .filtros-header-mobile {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px 20px;
+                border-bottom: 1px solid #eee;
+                background: white;
+            }
+
+            .filtros-header-mobile h2 {
+                margin: 0;
+                font-size: 18px;
+                color: #333;
+            }
+
+            .close-menu-btn {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                line-height: 1;
+            }
+
+            .filtros-details {
+                border: none;
+            }
+
+            .filtros-details[open] .filtros-content {
+                display: block;
             }
 
             .grafico-container {
-                margin-top: 80px;
+                margin-top: 10px;
                 margin-left: 10px;
                 margin-right: 10px;
             }
@@ -217,14 +490,23 @@
                 height: 300px;
             }
 
-            .navegacion {
-                top: 5px;
-                padding: 3px;
+            /* Padding para el contenido debajo de la barra fija */
+            body {
+                padding-top: 90px;
             }
 
-            .nav-btn {
-                padding: 6px 12px;
-                font-size: 14px;
+        }
+
+        /* Tablet en landscape o pantallas medianas */
+        @media (min-width: 769px) and (max-height: 800px) {
+            .panel-filtros-top {
+                overflow-y: auto;
+            }
+
+            .filtros-content {
+                max-height: calc(100vh - 40px);
+                overflow-y: auto;
+                padding-bottom: 20px;
             }
         }
 
@@ -249,18 +531,119 @@
             height: 4px;
             border-radius: 2px;
         }
+
+        /* Tabla de resumen */
+        .tabla-container {
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+
+        .tabla-container h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .tabla-resumen {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .tabla-resumen th,
+        .tabla-resumen td {
+            padding: 12px 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+
+        .tabla-resumen th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+
+        .tabla-resumen tr:hover {
+            background: #f8f9fa;
+        }
+
+        .variacion-positiva {
+            color: #e74c3c;
+            font-weight: 600;
+        }
+
+        .variacion-negativa {
+            color: #27ae60;
+            font-weight: 600;
+        }
+
+        .ubicacion-color {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @media (max-width: 768px) {
+            .tabla-resumen {
+                font-size: 12px;
+            }
+
+            .tabla-resumen th,
+            .tabla-resumen td {
+                padding: 8px 6px;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <!-- Navegación -->
-    <nav class="navegacion">
-        <a href="index.html" class="nav-btn">Mapa</a>
-        <a href="comparativa.html" class="nav-btn active">Comparativa</a>
-    </nav>
+    <!-- Barra superior fija -->
+    <div class="top-bar">
+        <!-- Título y descripción -->
+        <div class="titulo-app" onclick="toggleInfo()">
+            <h1>⚖️ Comparador de Criminalidad en España</h1>
+            <span class="info-toggle" id="info-toggle">▼</span>
+        </div>
+        <div class="info-expandible" id="info-expandible">
+            <p>
+                Compara los <strong>Balances Trimestrales de Criminalidad</strong> del Ministerio del Interior
+                por tipo de delito entre municipios (+20.000 hab), provincias, CCAA y nivel nacional.
+                Serie: <strong>2015 - diciembre 2025</strong>. Tasas por cada 1.000 habitantes.
+            </p>
+            <p class="fuente">
+                Fuente: Ministerio del Interior · INE ·
+                Hecho por <a href="https://www.linkedin.com/in/sergiovelayos/" target="_blank" style="color: #0077b5;">Sergio Velayos</a>
+                <a href="https://github.com/sergiovelayos/delitos" target="_blank" style="margin-left: 5px;" title="Ver código en GitHub">
+                    <svg height="14" width="14" viewBox="0 0 16 16" style="vertical-align: middle; fill: #333;">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                </a>
+            </p>
+        </div>
+        <!-- Navegación -->
+        <nav class="navegacion">
+            <button class="hamburger-btn" onclick="toggleMenu()" aria-label="Abrir filtros">☰</button>
+            <a href="index.html" class="nav-btn">Mapa</a>
+            <a href="comparativa.html" class="nav-btn active">Evolución</a>
+        </nav>
+    </div>
+
+    <!-- Overlay para cerrar menú -->
+    <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
 
     <!-- Panel de filtros -->
-    <div class="panel-filtros-top">
+    <div class="panel-filtros-top" id="panel-filtros">
+        <!-- Header móvil con botón cerrar -->
+        <div class="filtros-header-mobile">
+            <h2>Filtros</h2>
+            <button class="close-menu-btn" onclick="toggleMenu()" aria-label="Cerrar filtros">✕</button>
+        </div>
+
         <details class="filtros-details" id="filtros-details" open>
             <summary class="filtros-summary">
                 <h2>Filtros</h2>
@@ -278,24 +661,62 @@
                     </select>
                 </div>
 
-                <div class="filtro-grupo">
-                    <label>Ubicación 1:</label>
-                    <select id="ubicacion1">
-                        <option value="">Selecciona nivel primero</option>
-                    </select>
+                <!-- Contenedor dinámico de ubicaciones -->
+                <div id="ubicaciones-container">
+                    <!-- Ubicación 1 (siempre visible) -->
+                    <div class="ubicacion-grupo" data-ubicacion="1">
+                        <div class="ubicacion-header">
+                            <span class="ubicacion-numero" style="background: #2c3e50;">1</span>
+                            <span class="ubicacion-titulo">Ubicación principal</span>
+                        </div>
+                        <div class="filtro-grupo">
+                            <label>Nivel geográfico:</label>
+                            <select id="nivel-geo" class="nivel-select">
+                                <option value="ccaa">Comunidades Autónomas</option>
+                                <option value="provincia">Provincias</option>
+                                <option value="municipio">Municipios</option>
+                                <option value="nacional">Nacional</option>
+                            </select>
+                        </div>
+                        <div class="filtro-grupo">
+                            <select id="ubicacion1" class="ubicacion-select">
+                                <option value="">Selecciona ubicación</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="filtro-grupo">
-                    <label>Ubicación 2 (opcional):</label>
-                    <select id="ubicacion2">
-                        <option value="">Sin comparar</option>
-                    </select>
-                </div>
+                <!-- Botón añadir ubicación -->
+                <button type="button" id="btn-add-ubicacion" class="btn-add-ubicacion">
+                    <span>+</span> Añadir ubicación para comparar
+                </button>
 
                 <div class="filtro-grupo">
                     <label>Tipo de delito:</label>
                     <select id="tipologia">
                         <option value="">Todos los delitos</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Métrica:</label>
+                    <select id="metrica">
+                        <option value="tasa" selected>Tasa por 1000 hab.</option>
+                        <option value="absoluto">Valores absolutos</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Periodo inicial:</label>
+                    <select id="periodo-inicial">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+
+                <div class="filtro-grupo">
+                    <label>Periodo final:</label>
+                    <select id="periodo-final">
+                        <option value="">Cargando...</option>
                     </select>
                 </div>
 
@@ -306,7 +727,7 @@
 
     <!-- Contenedor del gráfico -->
     <div class="grafico-container">
-        <h2>Evolución de Criminalidad</h2>
+        <h2>Evolución de la Criminalidad en España</h2>
         <div class="chart-wrapper">
             <canvas id="grafico-evolucion"></canvas>
         </div>
@@ -314,7 +735,7 @@
             Selecciona una ubicación y pulsa "Comparar"
         </div>
         <div class="leyenda-grafico" id="leyenda-grafico" style="display: none;">
-            <div class="leyenda-item">
+            <div class="leyenda-item" id="leyenda-1-container">
                 <div class="leyenda-color" style="background: #2c3e50;"></div>
                 <span id="leyenda-1">Ubicación 1</span>
             </div>
@@ -322,10 +743,59 @@
                 <div class="leyenda-color" style="background: #e74c3c;"></div>
                 <span id="leyenda-2">Ubicación 2</span>
             </div>
+            <div class="leyenda-item" id="leyenda-3-container" style="display: none;">
+                <div class="leyenda-color" style="background: #3498db;"></div>
+                <span id="leyenda-3">Ubicación 3</span>
+            </div>
+            <div class="leyenda-item" id="leyenda-4-container" style="display: none;">
+                <div class="leyenda-color" style="background: #9b59b6;"></div>
+                <span id="leyenda-4">Ubicación 4</span>
+            </div>
+            <div class="leyenda-item" id="leyenda-5-container" style="display: none;">
+                <div class="leyenda-color" style="background: #f39c12;"></div>
+                <span id="leyenda-5">Ubicación 5</span>
+            </div>
+        </div>
+
+        <!-- Tabla de resumen -->
+        <div class="tabla-container" id="tabla-container" style="display: none;">
+            <h3>Resumen de variación</h3>
+            <table class="tabla-resumen">
+                <thead>
+                    <tr>
+                        <th>Ubicación</th>
+                        <th>Periodo inicial</th>
+                        <th>Valor inicial</th>
+                        <th>Periodo final</th>
+                        <th>Valor final</th>
+                        <th>Var. absoluta</th>
+                        <th>Var. relativa</th>
+                    </tr>
+                </thead>
+                <tbody id="tabla-body">
+                </tbody>
+            </table>
         </div>
     </div>
 
+    <!-- Toggle info y menú -->
+    <script>
+        function toggleInfo() {
+            const info = document.getElementById('info-expandible');
+            const toggle = document.getElementById('info-toggle');
+            info.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+        }
+
+        function toggleMenu() {
+            const panel = document.getElementById('panel-filtros');
+            const overlay = document.getElementById('menu-overlay');
+            panel.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+    </script>
+
     <!-- JavaScript -->
-    <script src="/static/js/comparativa.js?v=1"></script>
+    <script src="/static/js/comparativa.js?v=14"></script>
 </body>
 </html>

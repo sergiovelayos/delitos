@@ -1,10 +1,10 @@
 // Configuración
 const API_URL = window.location.origin;
-const GEOJSON_PATH = '../data/mapas';
+const GEOJSON_PATH = '/data/mapas';
 
 // Configuración fija
 const NIVEL = 'ccaa';
-const PERIODO = '2024-06-01';
+let PERIODO = null; // Se carga dinámicamente desde la API (el más reciente)
 const TIPOLOGIA = null; // Total criminalidad
 
 // Variables globales
@@ -14,10 +14,13 @@ let datosDelitos = {};
 let umbralesToasa = null;
 
 // Diccionario para mapear nombres del GeoJSON a nombres de la API
-const nombresCCAA = {
+// Soporta tanto CCAA como provincias (para CCAA uniprovinciales)
+const nombresGeoJSON = {
+    // CCAA
     'Andalucía': 'ANDALUCÍA',
     'Aragón': 'ARAGÓN',
     'Principado de Asturias': 'ASTURIAS',
+    'Asturias': 'ASTURIAS',
     'Illes Balears': 'BALEARES',
     'Canarias': 'CANARIAS',
     'Cantabria': 'CANTABRIA',
@@ -28,13 +31,32 @@ const nombresCCAA = {
     'Extremadura': 'EXTREMADURA',
     'Galicia': 'GALICIA',
     'Comunidad de Madrid': 'MADRID',
+    'Madrid': 'MADRID',
     'Región de Murcia': 'MURCIA',
+    'Murcia': 'MURCIA',
     'Comunidad Foral de Navarra': 'NAVARRA',
+    'Navarra': 'NAVARRA',
     'País Vasco/Euskadi': 'PAÍS VASCO',
     'La Rioja': 'LA RIOJA',
+    'Ciudad Autónoma de Ceuta': 'CEUTA',
     'Ciudad de Ceuta': 'CEUTA',
-    'Ciudad de Melilla': 'MELILLA'
+    'Ceuta': 'CEUTA',
+    'Ciudad Autónoma de Melilla': 'MELILLA',
+    'Ciudad de Melilla': 'MELILLA',
+    'Melilla': 'MELILLA',
+    // Provincias con nombres diferentes
+    'A Coruña': 'A CORUÑA',
+    'Araba/Álava': 'ÁLAVA',
+    'Bizkaia': 'VIZCAYA',
+    'Gipuzkoa': 'GUIPUZCOA',
+    'Alacant/Alicante': 'ALICANTE',
+    'Castelló/Castellón': 'CASTELLÓN',
+    'València/Valencia': 'VALENCIA',
+    'Las Palmas': 'LAS PALMAS',
+    'Santa Cruz de Tenerife': 'SANTA CRUZ DE TENERIFE'
 };
+// Alias para compatibilidad
+const nombresCCAA = nombresGeoJSON;
 
 // Inicializar mapa
 map = L.map('map', {
@@ -50,34 +72,36 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 // Cargar periodos desde la API
 async function cargarPeriodos() {
     try {
-	console.log('Intentando cargar periodos...');
+        console.log('Intentando cargar periodos...');
         const response = await fetch(`${API_URL}/api/mapa/periodos`);
         const data = await response.json();
-        
+
         const select = document.getElementById('periodo');
         if (!select) {
             console.error('No se encontró el select de periodo');
             return;
         }
-        
+
         select.innerHTML = '';
-        
-        data.periodos.forEach(periodo => {
+
+        data.periodos.forEach((periodo, index) => {
             const option = document.createElement('option');
             option.value = periodo;
             const fecha = new Date(periodo);
-            option.textContent = fecha.toLocaleDateString('es-ES', { 
-                year: 'numeric', 
-                month: 'long' 
+            option.textContent = fecha.toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'long'
             });
-            if (periodo === PERIODO) {
+            // Seleccionar el primer periodo (más reciente)
+            if (index === 0) {
                 option.selected = true;
+                PERIODO = periodo;
             }
             select.appendChild(option);
         });
-        
-        console.log('Periodos cargados:', data.periodos.length);
-        
+
+        console.log('Periodos cargados:', data.periodos.length, '- Periodo actual:', PERIODO);
+
     } catch (error) {
         console.error('Error cargando periodos:', error);
         console.error('Stack:', error.stack);
@@ -115,9 +139,11 @@ async function cargarTipologias() {
 }
 
 // Cargar datos de delitos
-async function cargarDatos(nivel = 'ccaa', periodo = '2024-06-01', tipologia = null) {
+async function cargarDatos(nivel = 'ccaa', periodo = null, tipologia = null) {
+    // Usar PERIODO global si no se especifica
+    const periodoActual = periodo || PERIODO;
     try {
-        let url = `${API_URL}/api/mapa/delitos/agregado/${nivel}?periodo=${periodo}`;
+        let url = `${API_URL}/api/mapa/delitos/agregado/${nivel}?periodo=${periodoActual}`;
         if (tipologia) {
             url += `&tipologia=${encodeURIComponent(tipologia)}`;
         }
@@ -136,7 +162,12 @@ async function cargarDatos(nivel = 'ccaa', periodo = '2024-06-01', tipologia = n
                 clave = item.geo.replace(/^CCAA \d+ /, '').toUpperCase();
             } else if (nivel === 'provincia') {
                 // Para provincias: "Provincia 28 Madrid" -> "MADRID"
-                clave = item.geo.replace(/^Provincia \d+ /, '').toUpperCase();
+                // También manejar CCAA uniprovinciales: "CCAA 04 Baleares" -> "BALEARES"
+                if (item.geo.startsWith('CCAA')) {
+                    clave = item.geo.replace(/^CCAA \d+ /, '').toUpperCase();
+                } else {
+                    clave = item.geo.replace(/^Provincia \d+ /, '').toUpperCase();
+                }
             } else if (nivel === 'municipio') {
                 // Para municipios: "28079 Madrid" -> "MADRID"
                 clave = item.geo.replace(/^\d+ /, '').toUpperCase();
@@ -187,29 +218,55 @@ function getColor(tasa) {
                                       '#fee5d9';
 }
 
+// Función auxiliar para normalizar texto (quitar acentos y mayúsculas)
+function normalizarTexto(texto) {
+    return texto
+        .toUpperCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+// Buscar datos para una geografía
+function buscarDatosGeografia(nombreGeoJSON) {
+    // 1. Buscar por diccionario de mapeo
+    const claveMapeada = nombresGeoJSON[nombreGeoJSON];
+    if (claveMapeada && datosDelitos[claveMapeada]) {
+        return datosDelitos[claveMapeada];
+    }
+
+    // 2. Buscar por nombre directo (mayúsculas)
+    const nombreUpper = nombreGeoJSON.toUpperCase();
+    if (datosDelitos[nombreUpper]) {
+        return datosDelitos[nombreUpper];
+    }
+
+    // 3. Buscar por coincidencia parcial
+    const nombreNorm = normalizarTexto(nombreGeoJSON);
+    for (const key of Object.keys(datosDelitos)) {
+        const keyNorm = normalizarTexto(key);
+        if (keyNorm.includes(nombreNorm) || nombreNorm.includes(keyNorm)) {
+            return datosDelitos[key];
+        }
+    }
+
+    // 4. Buscar por palabras clave (última opción)
+    const palabras = nombreNorm.split(/[\s\/]+/).filter(p => p.length > 3);
+    for (const key of Object.keys(datosDelitos)) {
+        const keyNorm = normalizarTexto(key);
+        for (const palabra of palabras) {
+            if (keyNorm.includes(palabra)) {
+                return datosDelitos[key];
+            }
+        }
+    }
+
+    return null;
+}
+
 // Estilo para las geometrías
 function style(feature) {
     const nombreGeoJSON = feature.properties.NAMEUNIT;
-    const natcode = feature.properties.NATCODE;
-    
-    let clave;
-    let datos;
-    
-    // Buscar datos según el nivel actual
-    // Primero intentar por nombre normalizado (para CCAA)
-    clave = nombresCCAA[nombreGeoJSON];
-    if (clave && datosDelitos[clave]) {
-        datos = datosDelitos[clave];
-    } else {
-        // Si no encontró, buscar directamente por nombre en datosDelitos
-        Object.keys(datosDelitos).forEach(key => {
-            if (key.includes(nombreGeoJSON.toUpperCase()) || 
-                nombreGeoJSON.toUpperCase().includes(key)) {
-                datos = datosDelitos[key];
-            }
-        });
-    }
-    
+    const datos = buscarDatosGeografia(nombreGeoJSON);
     const tasa = datos ? datos.tasa_por_mil : 0;
     
     return {
@@ -241,44 +298,52 @@ function resetHighlight(e) {
 function updateInfoPanel(props) {
     const infoContent = document.getElementById('info-content');
     const infoPanel = document.querySelector('.info-panel');
-    
+
     if (props) {
         const nombreGeoJSON = props.NAMEUNIT;
-        
-        // Buscar datos: primero por diccionario CCAA, luego por coincidencia directa
-        let clave = nombresCCAA[nombreGeoJSON];
-        let datos;
-        
-        if (clave && datosDelitos[clave]) {
-            datos = datosDelitos[clave];
-        } else {
-            // Buscar por nombre directo (para provincias y municipios)
-            const nombreBusqueda = nombreGeoJSON.toUpperCase();
-            
-            // Intentar coincidencia exacta
-            if (datosDelitos[nombreBusqueda]) {
-                datos = datosDelitos[nombreBusqueda];
-            } else {
-                // Buscar por coincidencia parcial
-                Object.keys(datosDelitos).forEach(key => {
-                    if (key.includes(nombreBusqueda) || nombreBusqueda.includes(key)) {
-                        datos = datosDelitos[key];
-                    }
-                });
-            }
-        }
-        
+
+        // Usar la función centralizada de búsqueda
+        const datos = buscarDatosGeografia(nombreGeoJSON);
+
         // Mostrar panel
         if (infoPanel) {
             infoPanel.style.display = 'block';
         }
-        
+
         if (datos) {
+            // Obtener periodo seleccionado
+            const periodoSelect = document.getElementById('periodo');
+            const periodoTexto = periodoSelect ? periodoSelect.options[periodoSelect.selectedIndex].text : '';
+
+            // Calcular nivel de criminalidad
+            let nivelCriminalidad = '';
+            let colorNivel = '';
+            if (umbralesToasa && datos.tasa_por_mil) {
+                if (datos.tasa_por_mil >= umbralesToasa.q4) {
+                    nivelCriminalidad = 'Muy alto';
+                    colorNivel = '#a50f15';
+                } else if (datos.tasa_por_mil >= umbralesToasa.q3) {
+                    nivelCriminalidad = 'Alto';
+                    colorNivel = '#de2d26';
+                } else if (datos.tasa_por_mil >= umbralesToasa.q2) {
+                    nivelCriminalidad = 'Medio-alto';
+                    colorNivel = '#fb6a4a';
+                } else if (datos.tasa_por_mil >= umbralesToasa.q1) {
+                    nivelCriminalidad = 'Medio';
+                    colorNivel = '#fcae91';
+                } else {
+                    nivelCriminalidad = 'Bajo';
+                    colorNivel = '#fee5d9';
+                }
+            }
+
             infoContent.innerHTML = `
                 <h3>${nombreGeoJSON}</h3>
+                <p style="font-size: 12px; color: #666; margin-bottom: 8px;">${periodoTexto}</p>
                 <p><strong>Total delitos:</strong> ${datos.total_delitos ? datos.total_delitos.toLocaleString('es-ES') : 'N/A'}</p>
                 <p><strong>Población:</strong> ${datos.poblacion ? datos.poblacion.toLocaleString('es-ES') : 'N/A'}</p>
                 <p><strong>Tasa por 1000 hab:</strong> ${datos.tasa_por_mil ? datos.tasa_por_mil.toFixed(2) : 'N/A'}</p>
+                ${nivelCriminalidad ? `<p style="margin-top: 8px;"><strong>Nivel:</strong> <span style="color: ${colorNivel}; font-weight: bold;">${nivelCriminalidad}</span></p>` : ''}
             `;
         } else {
             infoContent.innerHTML = `
@@ -358,68 +423,6 @@ function toggleLegend() {
         toggle.classList.toggle('collapsed');
     }
 }
-// Cargar periodos desde la API
-async function cargarPeriodos() {
-    try {
-        const response = await fetch(`${API_URL}/api/mapa/periodos`);
-        const data = await response.json();
-        
-        const select = document.getElementById('periodo');
-        if (!select) {
-            console.error('No se encontró el select de periodo');
-            return;
-        }
-        
-        select.innerHTML = '';
-        
-        data.periodos.forEach(periodo => {
-            const option = document.createElement('option');
-            option.value = periodo;
-            const fecha = new Date(periodo);
-            option.textContent = fecha.toLocaleDateString('es-ES', { 
-                year: 'numeric', 
-                month: 'long' 
-            });
-            if (periodo === PERIODO) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        });
-        
-        console.log('Periodos cargados:', data.periodos.length);
-        
-    } catch (error) {
-        console.error('Error cargando periodos:', error);
-    }
-}
-
-// Cargar tipologías desde la API
-async function cargarTipologias() {
-    try {
-        const response = await fetch(`${API_URL}/api/mapa/tipologias`);
-        const data = await response.json();
-        
-        const select = document.getElementById('tipologia');
-        if (!select) {
-            console.error('No se encontró el select de tipologia');
-            return;
-        }
-        
-        select.innerHTML = '<option value="">Todos los delitos</option>';
-        
-        data.tipologias.forEach(tipologia => {
-            const option = document.createElement('option');
-            option.value = tipologia;
-            option.textContent = tipologia;
-            select.appendChild(option);
-        });
-        
-        console.log('Tipologías cargadas:', data.tipologias.length);
-        
-    } catch (error) {
-        console.error('Error cargando tipologías:', error);
-    }
-}
 // Cargar mapa
 async function cargarMapa(nivel = 'ccaa') {
     try {
@@ -440,18 +443,25 @@ async function cargarMapa(nivel = 'ccaa') {
             return;
         }
         
-        const response = await fetch(`${GEOJSON_PATH}/${geoJsonFile}`);
+        const response = await fetch(`${GEOJSON_PATH}/${geoJsonFile}?v=2`);
         const geojson = await response.json();
-        
+
+        // Debug: mostrar features cargados
+        console.log('GeoJSON features:', geojson.features.length);
+        const canarias = geojson.features.filter(f =>
+            f.properties.NAMEUNIT && f.properties.NAMEUNIT.toLowerCase().includes('canarias')
+        );
+        console.log('Canarias en GeoJSON:', canarias.length > 0 ? 'SÍ' : 'NO');
+
         if (capaActual) {
             map.removeLayer(capaActual);
         }
-        
+
         capaActual = L.geoJSON(geojson, {
             style: style,
             onEachFeature: onEachFeature
         }).addTo(map);
-        
+
         console.log('Mapa cargado correctamente:', geoJsonFile);
     } catch (error) {
         console.error('Error cargando GeoJSON:', error);

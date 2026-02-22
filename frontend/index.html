@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Criminalidad España - Mapa Interactivo</title>
+    <title>Comparador de Criminalidad en España - Mapa</title>
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -133,6 +133,39 @@
             background: #45a049;
         }
         
+        /* Botón hamburguesa */
+        .hamburger-btn {
+            display: none;
+            background: white;
+            border: none;
+            padding: 8px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        /* Overlay para cerrar el menú */
+        .menu-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1001;
+        }
+
+        .menu-overlay.active {
+            display: block;
+        }
+
+        /* Header móvil oculto por defecto */
+        .filtros-header-mobile {
+            display: none;
+        }
+
         /* Desktop: Panel lateral izquierdo */
         @media (min-width: 769px) {
             .panel-filtros-top {
@@ -142,31 +175,76 @@
                 height: 100vh;
                 overflow-y: auto;
             }
-            
+
             .filtros-summary {
                 display: none;
             }
-            
+
             .filtros-details {
                 border: none;
             }
-            
+
             .filtros-details summary + * {
                 display: block !important;
             }
-        }
-        
-        /* Móvil: Panel superior colapsable */
-        @media (max-width: 768px) {
-            .panel-filtros-top {
-                top: 0;
-                left: 0;
-                right: 0;
-                width: 100%;
+
+            .hamburger-btn {
+                display: none !important;
             }
-            
+        }
+
+        /* Móvil: Menú hamburguesa deslizante */
+        @media (max-width: 768px) {
+            .hamburger-btn {
+                display: block;
+            }
+
+            .panel-filtros-top {
+                position: fixed;
+                top: 0;
+                left: -300px;
+                width: 280px;
+                height: 100vh;
+                overflow-y: auto;
+                transition: left 0.3s ease;
+                z-index: 1002;
+            }
+
+            .panel-filtros-top.open {
+                left: 0;
+            }
+
             .filtros-summary {
-                display: flex;
+                display: none;
+            }
+
+            .filtros-header-mobile {
+                display: flex !important;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px 20px;
+                border-bottom: 1px solid #eee;
+                background: white;
+            }
+
+            .filtros-header-mobile h2 {
+                margin: 0;
+                font-size: 18px;
+                color: #333;
+            }
+
+            .close-menu-btn {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                line-height: 1;
+            }
+
+            .filtros-content {
+                padding-top: 15px;
             }
         }
 
@@ -232,27 +310,90 @@
             display: none !important;
         }
 
-        /* Navegación */
-        .navegacion {
+        /* Barra superior fija (título + navegación) */
+        .top-bar {
             position: fixed;
-            top: 10px;
+            top: 0;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1001;
-            display: flex;
-            gap: 5px;
             background: white;
-            padding: 5px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: calc(100% - 20px);
+        }
+
+        /* Título de la app */
+        .titulo-app {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 6px 15px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .titulo-app h1 {
+            font-size: 13px;
+            color: #333;
+            margin: 0;
+        }
+
+        .titulo-app .info-toggle {
+            font-size: 11px;
+            color: #666;
+            transition: transform 0.3s ease;
+        }
+
+        .titulo-app .info-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .info-expandible {
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            max-height: 150px;
+            padding: 8px 15px;
+            background: #f9f9f9;
+            border-top: 1px solid #eee;
+        }
+
+        .info-expandible.collapsed {
+            max-height: 0;
+            padding: 0 15px;
+        }
+
+        .info-expandible p {
+            font-size: 11px;
+            color: #555;
+            line-height: 1.4;
+            margin: 0 0 5px 0;
+        }
+
+        .info-expandible .fuente {
+            font-size: 10px;
+            color: #888;
+            margin: 0;
+        }
+
+        /* Navegación */
+        .navegacion {
+            display: flex;
+            justify-content: center;
+            gap: 5px;
+            padding: 6px;
+            border-top: 1px solid #eee;
         }
 
         .nav-btn {
-            padding: 8px 16px;
+            padding: 5px 12px;
             border-radius: 5px;
             text-decoration: none;
             color: #333;
             font-weight: 500;
+            font-size: 13px;
             transition: background 0.2s;
         }
 
@@ -266,14 +407,19 @@
         }
 
         @media (max-width: 768px) {
-            .navegacion {
-                top: 5px;
-                padding: 3px;
+            .top-bar {
+                max-width: calc(100% - 10px);
+                border-radius: 0 0 8px 8px;
             }
 
-            .nav-btn {
-                padding: 6px 12px;
-                font-size: 14px;
+            .titulo-app h1 {
+                font-size: 12px;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .info-panel {
+                top: 130px;
             }
         }
 
@@ -281,11 +427,39 @@
 </head>
 <body>
 
-    <!-- Navegación -->
-    <nav class="navegacion">
-        <a href="index.html" class="nav-btn active">Mapa</a>
-        <a href="comparativa.html" class="nav-btn">Comparativa</a>
-    </nav>
+    <!-- Barra superior fija -->
+    <div class="top-bar">
+        <!-- Título y descripción -->
+        <div class="titulo-app" onclick="toggleInfo()">
+            <h1>⚖️ Comparador de Criminalidad en España</h1>
+            <span class="info-toggle" id="info-toggle">▼</span>
+        </div>
+        <div class="info-expandible" id="info-expandible">
+            <p>
+                Compara los <strong>Balances Trimestrales de Criminalidad</strong> del Ministerio del Interior
+                por tipo de delito entre municipios (+20.000 hab), provincias, CCAA y nivel nacional.
+                Serie: <strong>2015 - diciembre 2025</strong>. Tasas por cada 1.000 habitantes.
+            </p>
+            <p class="fuente">
+                Fuente: Ministerio del Interior · INE ·
+                Hecho por <a href="https://www.linkedin.com/in/sergiovelayos/" target="_blank" style="color: #0077b5;">Sergio Velayos</a>
+                <a href="https://github.com/sergiovelayos/delitos" target="_blank" style="margin-left: 5px;" title="Ver código en GitHub">
+                    <svg height="14" width="14" viewBox="0 0 16 16" style="vertical-align: middle; fill: #333;">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                    </svg>
+                </a>
+            </p>
+        </div>
+        <!-- Navegación -->
+        <nav class="navegacion">
+            <button class="hamburger-btn" onclick="toggleMenu()" aria-label="Abrir filtros">☰</button>
+            <a href="index.html" class="nav-btn active">Mapa</a>
+            <a href="comparativa.html" class="nav-btn">Evolución</a>
+        </nav>
+    </div>
+
+    <!-- Overlay para cerrar menú -->
+    <div class="menu-overlay" id="menu-overlay" onclick="toggleMenu()"></div>
     
     <!-- Panel de información -->
     <div class="info-panel" style="top: 10px; right: 10px;">
@@ -299,14 +473,19 @@
     <div id="map"></div>
 
 <!-- Panel de filtros -->
-    <div class="panel-filtros-top">
-        <!-- Header colapsable solo en móvil -->
+    <div class="panel-filtros-top" id="panel-filtros">
+        <!-- Header móvil con botón cerrar -->
+        <div class="filtros-header-mobile">
+            <h2>Filtros</h2>
+            <button class="close-menu-btn" onclick="toggleMenu()" aria-label="Cerrar filtros">✕</button>
+        </div>
+
         <details class="filtros-details" id="filtros-details" open>
             <summary class="filtros-summary">
                 <h2>Filtros</h2>
                 <span class="toggle-arrow">▼</span>
             </summary>
-            
+
             <div class="filtros-content">
                 <div class="filtro-grupo">
                     <label>Nivel geográfico:</label>
@@ -337,36 +516,6 @@
         </details>
     </div>
     
-    <!-- Panel lateral de filtros -->
-    <div class="panel-filtros" id="panel-filtros">
-        <h2>Filtros</h2>
-        
-        <div class="filtro-grupo">
-            <label>Nivel geográfico:</label>
-            <select id="nivel-geo">
-                <option value="ccaa" selected>Comunidades Autónomas</option>
-                <option value="provincia">Provincias</option>
-                <option value="municipio">Municipios</option>
-                <option value="nacional">Nacional</option>
-            </select>
-        </div>
-        
-        <div class="filtro-grupo">
-            <label>Periodo:</label>
-            <select id="periodo">
-                <option value="">Cargando...</option>
-            </select>
-        </div>
-        
-        <div class="filtro-grupo">
-            <label>Tipo de delito:</label>
-            <select id="tipologia">
-                <option value="">Todos los delitos</option>
-            </select>
-        </div>
-        
-        <button id="btn-aplicar" class="btn-aplicar">Aplicar filtros</button>
-    </div>    
     <!-- Leyenda -->
     <div class="legend">
         <h4>Tasa por 1000 hab.</h4>
@@ -394,8 +543,25 @@
     
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
+
+    <!-- Toggle info y menú -->
+    <script>
+        function toggleInfo() {
+            const info = document.getElementById('info-expandible');
+            const toggle = document.getElementById('info-toggle');
+            info.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+        }
+
+        function toggleMenu() {
+            const panel = document.getElementById('panel-filtros');
+            const overlay = document.getElementById('menu-overlay');
+            panel.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+    </script>
+
     <!-- Nuestro JavaScript -->
-    <script src="/static/js/app.js?v=5"></script>
+    <script src="/static/js/app.js?v=18"></script>
 </body>
 </html>

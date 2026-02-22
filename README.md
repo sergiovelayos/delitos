@@ -21,7 +21,7 @@ Aplicación web para la visualización interactiva de datos de criminalidad en E
 - **Tooltips interactivos:** Toca un punto del gráfico para ver detalles (móvil-friendly)
 - **Navegación entre vistas:** Botones para alternar entre Mapa y Comparativa
 - **Responsive:** Panel lateral en desktop, colapsable superior en móvil
-- **Datos actualizados:** Hasta junio 2025
+- **Datos actualizados:** Hasta diciembre 2025
 
 ---
 
@@ -51,15 +51,19 @@ backend/
 frontend/
 ├── index.html           # Página del mapa interactivo
 ├── comparativa.html     # Página de comparación con gráficos
-├── static/
-│   └── js/
-│       ├── app.js           # Lógica del mapa
-│       └── comparativa.js   # Lógica de gráficos
-└── data/
-    └── mapas/          # GeoJSON files
-        ├── comunidades.geojson
-        ├── provincias.geojson
-        └── municipios.geojson
+└── static/
+    └── js/
+        ├── app.js           # Lógica del mapa
+        └── comparativa.js   # Lógica de gráficos
+
+data/
+└── mapas/               # GeoJSON files (generados desde CNIG)
+    ├── comunidades.geojson
+    ├── provincias.geojson
+    └── municipios.geojson
+
+scripts/
+└── procesar_mapas.py    # Script para generar GeoJSON desde shapefiles CNIG
 ```
 
 ---
@@ -305,11 +309,286 @@ data.datos.forEach(item => {
 
 ## 📊 Fuente de Datos
 
-Los datos provienen de los **Balances Trimestrales de Criminalidad** publicados por el Ministerio del Interior de España.
+Los datos provienen de los **Balances Trimestrales de Criminalidad** publicados por el Ministerio del Interior de España a través del Sistema Estadístico de Criminalidad (SEC).
 
 **Fuente oficial:** https://estadisticasdecriminalidad.ses.mir.es/publico/portalestadistico/balances
 
-**Periodo disponible:** 2015 - Junio 2025
+**Periodo disponible:** 2015 - Diciembre 2025
+
+**Cobertura geográfica:**
+- Municipios con más de 20.000 habitantes
+- 52 provincias
+- 19 Comunidades y Ciudades Autónomas
+- Nivel nacional
+
+**Origen de los datos:** Policía Nacional, Guardia Civil, policías autonómicas y policías locales que reportan al SEC.
+
+---
+
+## 📝 Metodología y Tratamiento de Datos
+
+### Problemática de los datos originales
+
+Los datos publicados por el Ministerio presentan dos retos principales:
+
+1. **Formato acumulado:** Las cifras son acumulativas por trimestre, lo que dificulta ver la evolución real periodo a periodo
+2. **Varianza poblacional:** La comparación directa entre territorios de tamaños muy diferentes no es significativa
+
+### Transformaciones aplicadas
+
+Para resolver estos problemas se han aplicado las siguientes transformaciones:
+
+- **Desagregación trimestral:** Cálculo matemático para obtener cifras por trimestre individual (restando el acumulado del trimestre anterior)
+- **Normalización por población:** Cruce con datos del INE para calcular tasas por cada 1.000 habitantes
+
+### Proceso de limpieza y enriquecimiento
+
+| Paso | Descripción |
+|------|-------------|
+| **Estandarización** | Conversión de cifras a enteros y fechas a formato estándar |
+| **Unificación de categorías** | Consolidación de delitos idénticos con nomenclatura variable entre periodos |
+| **Eliminación de duplicados** | Detección y corrección de entradas redundantes o erróneas |
+| **Integración de población** | Asignación de datos censales del INE por municipio, provincia y año |
+| **Desagregación trimestral** | Extracción de cifras individuales por trimestre |
+| **Cálculo de tasas** | Aplicación de fórmula: (delitos trimestrales / población) × 1.000 |
+
+### Evolución de la estructura de datos
+
+El Ministerio ha ampliado progresivamente su cobertura:
+
+| Año | Geografías | Tipologías | Registros/trimestre |
+|-----|------------|------------|---------------------|
+| 2016 | 221 | 8 | ~5.300 |
+| 2017 | 320+ | 14 | ~13.500 |
+| 2021 | 489 | 14 | ~22.000 |
+| 2023+ | ~500 | 19 | ~28.000 |
+
+---
+
+## 🔢 Clasificación de Delitos
+
+### Criminalidad Convencional
+
+| Categoría | Descripción |
+|-----------|-------------|
+| **Homicidios** | Homicidios dolosos y asesinatos consumados e intentados |
+| **Delitos sexuales** | Agresiones sexuales con penetración y otros delitos contra la libertad sexual |
+| **Robos con violencia** | Robos con violencia e intimidación |
+| **Robos con fuerza** | En domicilios, establecimientos y otros |
+| **Hurtos** | Sustracciones sin fuerza ni violencia |
+| **Vehículos** | Sustracción de vehículos a motor |
+| **Tráfico de drogas** | Delitos relacionados con estupefacientes |
+| **Otras infracciones** | Resto de infracciones penales convencionales |
+
+### Cibercriminalidad (desde 2022)
+
+| Categoría | Descripción |
+|-----------|-------------|
+| **Estafas informáticas** | Fraudes online y phishing |
+| **Otros ciberdelitos** | Suplantación de identidad, hacking, propiedad intelectual, delitos sexuales online |
+
+Todas las categorías se agregan en **Total Criminalidad** (infracciones penales totales).
+
+---
+
+## 👥 Datos de Población
+
+Los datos de población provienen del **Instituto Nacional de Estadística (INE)** a través del Censo anual de población.
+
+**Fuente oficial:** [Censo anual de población 2021-2025](https://www.ine.es/jaxiT3/Datos.htm?t=68065) - Población según municipio y sexo
+
+**Cobertura:**
+- **Periodo:** 2021 - 2025
+- **Desglose:** Por municipio, año y sexo (Total, Hombres, Mujeres)
+- **Registros:** 121.971 registros de población
+- **Municipios:** 8.132 municipios de España
+
+**Tablas de diccionario geográfico:**
+| Tabla | Registros | Descripción |
+|-------|-----------|-------------|
+| `comunidades` | 19 | Comunidades y Ciudades Autónomas (ID INE y nombre) |
+| `provincias` | 52 | Provincias vinculadas a su CCAA |
+| `municipios` | 8.132 | Municipios con ID único de 5 dígitos (CPRO + CMUN) |
+| `poblacion` | 121.971 | Población por municipio, año (2021-2025) y sexo |
+
+**Nota:** El código de municipio de 5 dígitos sigue el estándar INE (código de provincia + código de municipio) para facilitar el cruce con otros conjuntos de datos oficiales.
+
+### Actualización de población para nuevos años
+
+Cuando haya nuevos datos de población (ej: 2026) y datos de criminalidad del mismo año, seguir este proceso:
+
+**1. Descargar datos del INE:**
+   - Ir a [INE - Censo anual de población](https://www.ine.es/jaxiT3/Datos.htm?t=68065)
+   - Descargar CSV con población por municipio y sexo para el nuevo año
+
+**2. Importar a la tabla `poblacion`:**
+```sql
+-- Insertar nuevos registros de población
+INSERT INTO poblacion (municipio_id, anio, sexo, valor)
+VALUES ('01001', 2026, 'Total', 2980),
+       ('01001', 2026, 'Hombres', 1490),
+       -- ... resto de municipios
+```
+
+**3. Actualizar población en `delitos_aux`:**
+
+Ejecutar las siguientes queries SQL para propagar la población a todos los niveles:
+
+```sql
+-- Actualizar MUNICIPIOS (geo empieza con número)
+UPDATE delitos_aux da
+SET pob = p.valor
+FROM poblacion p
+WHERE da.geo ~ '^[0-9]'
+  AND EXTRACT(YEAR FROM da.periodo) = 2026
+  AND p.municipio_id = SUBSTRING(da.geo FROM 1 FOR 5)
+  AND p.anio = 2026
+  AND p.sexo = 'Total';
+
+-- Actualizar PROVINCIAS (agregar municipios por provincia)
+UPDATE delitos_aux da
+SET pob = pob_prov.total_pob
+FROM (
+    SELECT m.provincia_id, SUM(p.valor) as total_pob
+    FROM poblacion p
+    JOIN municipios m ON p.municipio_id = m.id
+    WHERE p.sexo = 'Total' AND p.anio = 2026
+    GROUP BY m.provincia_id
+) pob_prov
+WHERE da.geo LIKE 'Provincia%'
+  AND EXTRACT(YEAR FROM da.periodo) = 2026
+  AND pob_prov.provincia_id = SUBSTRING(da.geo FROM 11 FOR 2);
+
+-- Actualizar CCAA (agregar municipios por comunidad)
+UPDATE delitos_aux da
+SET pob = pob_ccaa.total_pob
+FROM (
+    SELECT m.comunidad_id, SUM(p.valor) as total_pob
+    FROM poblacion p
+    JOIN municipios m ON p.municipio_id = m.id
+    WHERE p.sexo = 'Total' AND p.anio = 2026
+    GROUP BY m.comunidad_id
+) pob_ccaa
+WHERE da.geo LIKE 'CCAA%'
+  AND EXTRACT(YEAR FROM da.periodo) = 2026
+  AND pob_ccaa.comunidad_id = SUBSTRING(da.geo FROM 6 FOR 2);
+
+-- Actualizar NACIONAL (suma total)
+UPDATE delitos_aux da
+SET pob = (SELECT SUM(valor) FROM poblacion WHERE sexo = 'Total' AND anio = 2026)
+WHERE da.geo = 'NACIONAL'
+  AND EXTRACT(YEAR FROM da.periodo) = 2026;
+```
+
+**4. Verificar actualización:**
+```sql
+-- Comprobar población nacional 2026
+SELECT geo, periodo, pob
+FROM delitos_aux
+WHERE geo = 'NACIONAL'
+  AND EXTRACT(YEAR FROM periodo) = 2026
+  AND tipo = 'Total Criminalidad';
+```
+
+---
+
+## 🗺️ Datos Geográficos (GeoJSON)
+
+Los archivos GeoJSON para visualizar los mapas se obtienen del **Centro Nacional de Información Geográfica (CNIG)** del Instituto Geográfico Nacional (IGN).
+
+### Fuente oficial
+
+**Centro de Descargas CNIG:** https://centrodedescargas.cnig.es/CentroDescargas/limites-municipales-provinciales-autonomicos
+
+### Límites municipales, provinciales y autonómicos
+
+Esta geometría responde a la interpretación de los títulos jurídicos inscritos en el Registro Central de Cartografía (RCC): actas de línea límite, resoluciones administrativas, sentencias judiciales. Algunos tramos de líneas pueden ser "provisionales" al carecer de título jurídico que avale su geometría. Estas geometrías tienen una incertidumbre de unos 40 m, consecuencia de las precisiones de las mediciones de la época del levantamiento, trazados sobre el mapa y la posterior digitalización, con excepción de aquellas líneas en las que se han desarrollado una serie de trabajos técnicos y administrativos que han permitido la inscripción de una geometría más precisa.
+
+**Sistema de Referencia Geodésico:** ETRS89 en la península, Illes Balears, Ceuta y Melilla, y REGCAN95 en Canarias (ambos sistemas compatibles con WGS84).
+
+**Formato original:** Shapefile (.shp) y GML.
+
+**[Enlace descarga](https://centrodedescargas.cnig.es/CentroDescargas/detalleArchivo?sec=9000029#)**
+
+### Licencia y reconocimiento
+
+El uso de la información de los productos y servicios de datos geográficos definidos en la [Orden FOM/2807/2015](https://www.boe.es/boe/dias/2015/12/26/pdfs/BOE-A-2015-14129.pdf), así como sus derivados, conlleva la aceptación por el usuario de las condiciones generales de dicha orden, concretada en una [licencia de uso](http://www.ign.es/resources/licencia/Condiciones_licenciaUso_IGN.pdf), compatible con **CC-BY 4.0**.
+
+**Atribución (obra derivada):** Obra derivada de BDLJE CC-BY 4.0 [ign.es](https://www.ign.es/)
+
+### Archivos necesarios
+
+El CNIG proporciona los datos separados por zona geográfica:
+
+| Zona | Archivos | Incluye |
+|------|----------|---------|
+| **Península + Baleares** | `recintos_*_inspire_peninbal_etrs89.shp` | Península, Baleares, Ceuta, Melilla |
+| **Canarias** | `recintos_*_inspire_canarias_regcan95.shp` | Las Palmas, Santa Cruz de Tenerife |
+
+**Importante:** Para tener el mapa completo de España (52 provincias) es necesario descargar **ambas** zonas y combinarlas.
+
+### Proceso de generación
+
+1. **Descargar shapefiles del CNIG:**
+   ```bash
+   # Descargar desde el Centro de Descargas del CNIG:
+   # - recintos_autonomicas_inspire_peninbal_etrs89.zip
+   # - recintos_autonomicas_inspire_canarias_regcan95.zip
+   # - recintos_provinciales_inspire_peninbal_etrs89.zip
+   # - recintos_provinciales_inspire_canarias_regcan95.zip
+   # - recintos_municipales_inspire_peninbal_etrs89.zip
+   # - recintos_municipales_inspire_canarias_regcan95.zip
+
+   # Extraer en carpeta shapefiles/
+   unzip *.zip -d shapefiles/
+   ```
+
+2. **Instalar dependencias:**
+   ```bash
+   pip install geopandas pandas shapely
+   ```
+
+3. **Ejecutar script de procesamiento:**
+   ```bash
+   python scripts/procesar_mapas.py \
+       --input-dir ./shapefiles \
+       --output-dir ./data/mapas
+   ```
+
+4. **Resultado:** Se generan 3 archivos GeoJSON optimizados:
+   - `comunidades.geojson` - 19 CCAA
+   - `provincias.geojson` - 52 provincias (50 + Ceuta + Melilla)
+   - `municipios.geojson` - ~8.131 municipios
+
+### Script de procesamiento
+
+El script `scripts/procesar_mapas.py` realiza:
+
+1. **Combinación** de Península+Baleares con Canarias
+2. **Reproyección** a WGS84 (EPSG:4326) para compatibilidad con Leaflet
+3. **Simplificación** de geometrías para reducir tamaño de archivo
+4. **Exportación** a formato GeoJSON
+
+```bash
+# Ver ayuda del script
+python scripts/procesar_mapas.py --help
+
+# Procesar solo provincias
+python scripts/procesar_mapas.py --nivel provincias
+
+# Listar archivos disponibles
+python scripts/procesar_mapas.py --listar --input-dir ./shapefiles
+```
+
+### Tolerancia de simplificación
+
+| Nivel | Tolerancia | Tamaño aproximado |
+|-------|------------|-------------------|
+| CCAA | 0.01 | ~50 KB |
+| Provincias | 0.005 | ~200 KB |
+| Municipios | 0.001 | ~5 MB |
+
+Valores más altos = más simplificación = archivo más pequeño pero menos detalle.
 
 ---
 
