@@ -8,6 +8,7 @@ let chart = null;
 let ubicacionesDisponibles = {};  // Diccionario por nivel
 let periodosDisponibles = [];
 let ubicacionesActivas = 1;  // Contador de ubicaciones añadidas
+let _tooltipOutsideHandler = null;  // Referencia al handler para poder eliminarlo
 
 // Cargar tipologías desde la API
 async function cargarTipologias() {
@@ -431,6 +432,22 @@ function dibujarGrafico(datos, nivel, periodoInicial, periodoFinal, metrica = 't
     // Obtener todas las fechas para el eje X
     const todasFechas = datosFiltrados[0]?.evolucion.map(item => item.periodo) || [];
 
+    // Calcular valor máximo de tasa para determinar decimales apropiados en el eje Y
+    let maxTasa = 0;
+    datosFiltrados.forEach(serie => {
+        serie.evolucion.forEach(punto => {
+            if (punto.tasa_por_mil > maxTasa) maxTasa = punto.tasa_por_mil;
+        });
+    });
+
+    function decimalesTasa(maxVal) {
+        if (maxVal >= 100) return 0;
+        if (maxVal >= 10) return 1;
+        if (maxVal >= 1) return 2;
+        if (maxVal >= 0.1) return 3;
+        return 4;
+    }
+
     // Crear gráfico
     chart = new Chart(ctx, {
         type: 'line',
@@ -486,6 +503,13 @@ function dibujarGrafico(datos, nivel, periodoInicial, periodoFinal, metrica = 't
                     }
                 }
             },
+            onClick: function(event, elements) {
+                // Hide tooltip when clicking on empty area inside chart
+                if (elements.length === 0) {
+                    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+                    chart.update('none');
+                }
+            },
             scales: {
                 x: {
                     type: 'category',
@@ -518,7 +542,11 @@ function dibujarGrafico(datos, nivel, periodoInicial, periodoFinal, metrica = 't
                             if (metrica === 'absoluto') {
                                 return value.toLocaleString('es-ES');
                             }
-                            return value;
+                            const decimales = decimalesTasa(maxTasa);
+                            return value.toLocaleString('es-ES', {
+                                minimumFractionDigits: decimales,
+                                maximumFractionDigits: decimales
+                            });
                         }
                     }
                 }
@@ -531,81 +559,134 @@ function dibujarGrafico(datos, nivel, periodoInicial, periodoFinal, metrica = 't
 
     // Llenar tabla de resumen con datos filtrados
     llenarTablaResumen(datosFiltrados, nivel, metrica);
+
+    // Ocultar tooltip al hacer clic/touch fuera del canvas
+    const _canvas = ctx.canvas;
+    if (_tooltipOutsideHandler) {
+        document.removeEventListener('click', _tooltipOutsideHandler);
+        document.removeEventListener('touchstart', _tooltipOutsideHandler);
+    }
+    _tooltipOutsideHandler = function(e) {
+        if (chart && !_canvas.contains(e.target)) {
+            chart.tooltip.setActiveElements([], { x: 0, y: 0 });
+            chart.update('none');
+        }
+    };
+    document.addEventListener('click', _tooltipOutsideHandler);
+    document.addEventListener('touchstart', _tooltipOutsideHandler, { passive: true });
 }
 
-// Llenar tabla de resumen con variaciones
+// Llenar tabla de resumen con variaciones (formato pivotado: ubicaciones como columnas)
 function llenarTablaResumen(datos, nivel, metrica = 'tasa') {
+    const thead = document.getElementById('tabla-thead');
     const tbody = document.getElementById('tabla-body');
     const container = document.getElementById('tabla-container');
 
-    if (!tbody || !container) return;
+    if (!thead || !tbody || !container) return;
 
-    // Limpiar tabla
+    // Filtrar series con suficientes datos
+    const series = datos.filter((s, i) => i < MAX_UBICACIONES && s.evolucion.length >= 2);
+    if (series.length === 0) return;
+
+    // ── Cabecera dinámica ──────────────────────────────────────────────
+    const trHead = document.createElement('tr');
+    trHead.innerHTML = '<th class="col-ubicacion"></th>';
+    series.forEach((serie, i) => {
+        const nombre = extraerNombreLegible(serie.geo, nivel);
+        trHead.innerHTML += `
+            <th class="col-metrica">
+                <span class="ubicacion-color" style="background:${COLORES[i]};display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle;"></span>
+                ${nombre}
+            </th>`;
+    });
+    thead.innerHTML = '';
+    thead.appendChild(trHead);
+
+    // ── Calcular métricas por serie ────────────────────────────────────
+    const calcSerie = (serie) => {
+        const ev = serie.evolucion;
+        const primer = ev[0];
+        const ultimo = ev[ev.length - 1];
+        const getVal = (p) => metrica === 'tasa' ? p.tasa_por_mil : p.total_delitos;
+        const valorInicial = getVal(primer);
+        const valorFinal   = getVal(ultimo);
+        const valores      = ev.map(getVal);
+        const promedio     = valores.reduce((s, v) => s + v, 0) / valores.length;
+        const varAbs       = valorFinal - valorInicial;
+        const varRel       = valorInicial !== 0 ? (varAbs / valorInicial) * 100 : 0;
+
+        const fmt = (v) => metrica === 'tasa'
+            ? v.toFixed(2)
+            : Math.round(v).toLocaleString('es-ES');
+        const fmtSgn = (v) => (v >= 0 ? '+' : '') + fmt(v);
+
+        return {
+            periodoInicial: primer.periodo,
+            periodoFinal:   ultimo.periodo,
+            valorInicial,
+            valorFinal,
+            promedio,
+            varAbs,
+            varRel,
+            fmt,
+            fmtSgn
+        };
+    };
+
+    const metricas = series.map(calcSerie);
+
+    // Helper: formato de periodo trimestral
+    const fmtPeriodo = (iso) => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        const mes = d.getUTCMonth() + 1;
+        const anyo = d.getUTCFullYear();
+        const rangos = { 3: 'ene-mar', 6: 'abr-jun', 9: 'jul-sep', 12: 'oct-dic' };
+        return (rangos[mes] || iso) + ' ' + anyo;
+    };
+
+    // ── Filas pivotadas ────────────────────────────────────────────────
     tbody.innerHTML = '';
 
-    datos.forEach((serie, index) => {
-        if (index >= MAX_UBICACIONES) return;
-
-        const evolucion = serie.evolucion;
-        if (evolucion.length < 2) return;
-
-        const nombreLegible = extraerNombreLegible(serie.geo, nivel);
-        const primerPeriodo = evolucion[0];
-        const ultimoPeriodo = evolucion[evolucion.length - 1];
-
-        let valorInicial, valorFinal, variacionAbsoluta, variacionRelativa;
-
-        if (metrica === 'tasa') {
-            valorInicial = primerPeriodo.tasa_por_mil;
-            valorFinal = ultimoPeriodo.tasa_por_mil;
-        } else {
-            valorInicial = primerPeriodo.total_delitos;
-            valorFinal = ultimoPeriodo.total_delitos;
-        }
-
-        variacionAbsoluta = valorFinal - valorInicial;
-        variacionRelativa = valorInicial !== 0
-            ? ((valorFinal - valorInicial) / valorInicial) * 100
-            : 0;
-
-        const fechaInicial = new Date(primerPeriodo.periodo).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short'
-        });
-        const fechaFinal = new Date(ultimoPeriodo.periodo).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'short'
-        });
-
-        const claseVariacion = variacionAbsoluta >= 0 ? 'variacion-positiva' : 'variacion-negativa';
-        const signo = variacionAbsoluta >= 0 ? '+' : '';
-
-        let valorInicialStr, valorFinalStr, variacionAbsolutaStr;
-        if (metrica === 'tasa') {
-            valorInicialStr = valorInicial.toFixed(2);
-            valorFinalStr = valorFinal.toFixed(2);
-            variacionAbsolutaStr = `${signo}${variacionAbsoluta.toFixed(2)}`;
-        } else {
-            valorInicialStr = valorInicial.toLocaleString('es-ES');
-            valorFinalStr = valorFinal.toLocaleString('es-ES');
-            variacionAbsolutaStr = `${signo}${variacionAbsoluta.toLocaleString('es-ES')}`;
-        }
-
+    const buildRow = (label, cells, extraClass = '') => {
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>
-                <span class="ubicacion-color" style="background: ${COLORES[index]};"></span>
-                ${nombreLegible}
-            </td>
-            <td>${fechaInicial}</td>
-            <td>${valorInicialStr}</td>
-            <td>${fechaFinal}</td>
-            <td>${valorFinalStr}</td>
-            <td class="${claseVariacion}">${variacionAbsolutaStr}</td>
-            <td class="${claseVariacion}">${signo}${variacionRelativa.toFixed(1)}%</td>
-        `;
+        if (extraClass) tr.classList.add(extraClass);
+        tr.innerHTML = `<td class="tabla-row-label">${label}</td>` +
+            cells.map(c => `<td class="tabla-data-cell">${c}</td>`).join('');
         tbody.appendChild(tr);
-    });
+    };
+
+    // Periodo (shared info — shown once if all equal, else per column)
+    const mismoInicio = metricas.every(m => m.periodoInicial === metricas[0].periodoInicial);
+    const mismoFin    = metricas.every(m => m.periodoFinal   === metricas[0].periodoFinal);
+
+    if (mismoInicio) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="tabla-row-label">Periodo</td>
+            <td class="tabla-data-cell" colspan="${series.length}">
+                ${fmtPeriodo(metricas[0].periodoInicial)} → ${mismoFin ? fmtPeriodo(metricas[0].periodoFinal) : ''}
+            </td>`;
+        tbody.appendChild(tr);
+        if (!mismoFin) {
+            buildRow('Periodo final', metricas.map(m => fmtPeriodo(m.periodoFinal)));
+        }
+    } else {
+        buildRow('Periodo inicial', metricas.map(m => fmtPeriodo(m.periodoInicial)));
+        buildRow('Periodo final',   metricas.map(m => fmtPeriodo(m.periodoFinal)));
+    }
+
+    buildRow('Valor inicial', metricas.map(m => m.fmt(m.valorInicial)));
+    buildRow('Valor final',   metricas.map(m => m.fmt(m.valorFinal)));
+    buildRow('Promedio',      metricas.map(m => m.fmt(m.promedio)), 'tabla-promedio');
+    buildRow('Var. absoluta', metricas.map(m => {
+        const cls = m.varAbs >= 0 ? 'variacion-positiva' : 'variacion-negativa';
+        return `<span class="${cls}">${m.fmtSgn(m.varAbs)}</span>`;
+    }));
+    buildRow('Var. %', metricas.map(m => {
+        const cls = m.varAbs >= 0 ? 'variacion-positiva' : 'variacion-negativa';
+        return `<span class="${cls}">${(m.varRel >= 0 ? '+' : '')}${m.varRel.toFixed(1)}%</span>`;
+    }));
 
     container.style.display = 'block';
 }

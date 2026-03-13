@@ -341,6 +341,10 @@ Para resolver estos problemas se han aplicado las siguientes transformaciones:
 - **Desagregación trimestral:** Cálculo matemático para obtener cifras por trimestre individual (restando el acumulado del trimestre anterior)
 - **Normalización por población:** Cruce con datos del INE para calcular tasas por cada 1.000 habitantes
 
+### Diagrama de transformación de datos
+
+![Diagrama de transformación de datos](docs/assets/diagrama_transformacion_datos.svg)
+
 ### Proceso de limpieza y enriquecimiento
 
 | Paso | Descripción |

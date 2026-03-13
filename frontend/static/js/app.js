@@ -63,10 +63,12 @@ map = L.map('map', {
     zoomControl: false
 }).setView([40.4168, -3.7038], 6);
 
-// Añadir capa base de OpenStreetMap
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap contributors',
-    maxZoom: 19
+// Capa base CartoDB Positron (limpia para dataviz)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+    detectRetina: true
 }).addTo(map);
 
 // Cargar periodos desde la API
@@ -311,9 +313,13 @@ function updateInfoPanel(props) {
         }
 
         if (datos) {
-            // Obtener periodo seleccionado
+            // Periodo como rango trimestral: "jul-sep 2025"
             const periodoSelect = document.getElementById('periodo');
-            const periodoTexto = periodoSelect ? periodoSelect.options[periodoSelect.selectedIndex].text : '';
+            const periodoTexto = periodoSelect ? formatearPeriodo(periodoSelect.value) : '';
+
+            // Tipo de delito seleccionado
+            const tipologiaEl = document.getElementById('tipologia');
+            const tipologiaTexto = tipologiaEl && tipologiaEl.value ? tipologiaEl.value : 'Todos los delitos';
 
             // Calcular nivel de criminalidad
             let nivelCriminalidad = '';
@@ -339,16 +345,22 @@ function updateInfoPanel(props) {
 
             infoContent.innerHTML = `
                 <h3>${nombreGeoJSON}</h3>
-                <p style="font-size: 12px; color: #666; margin-bottom: 8px;">${periodoTexto}</p>
+                <p style="font-size:11px;color:#94a3b8;margin-bottom:2px;text-transform:uppercase;letter-spacing:0.04em;">${tipologiaTexto}</p>
+                <p style="font-size:12px;color:#64748b;margin-bottom:10px;font-weight:500;">${periodoTexto}</p>
                 <p><strong>Total delitos:</strong> ${datos.total_delitos ? datos.total_delitos.toLocaleString('es-ES') : 'N/A'}</p>
                 <p><strong>Población:</strong> ${datos.poblacion ? datos.poblacion.toLocaleString('es-ES') : 'N/A'}</p>
                 <p><strong>Tasa por 1000 hab:</strong> ${datos.tasa_por_mil ? datos.tasa_por_mil.toFixed(2) : 'N/A'}</p>
-                ${nivelCriminalidad ? `<p style="margin-top: 8px;"><strong>Nivel:</strong> <span style="color: ${colorNivel}; font-weight: bold;">${nivelCriminalidad}</span></p>` : ''}
+                ${nivelCriminalidad ? `<p style="margin-top:8px;"><strong>Nivel:</strong> <span style="color:${colorNivel};font-weight:bold;">${nivelCriminalidad}</span></p>` : ''}
             `;
         } else {
+            // Mensaje adaptado al nivel geográfico
+            const nivelActual = document.getElementById('nivel-geo') ? document.getElementById('nivel-geo').value : '';
+            const msgSinDatos = nivelActual === 'municipio'
+                ? 'No hay datos disponibles en poblaciones menores de 20.000 habitantes'
+                : 'Sin datos disponibles';
             infoContent.innerHTML = `
                 <h3>${nombreGeoJSON}</h3>
-                <p style="color: #999;">Sin datos disponibles</p>
+                <p style="color:#94a3b8;font-size:12px;line-height:1.5;">${msgSinDatos}</p>
             `;
         }
     } else {
@@ -413,6 +425,115 @@ function actualizarLeyenda() {
     }, 10);
 }
 
+// ── Formato de periodo trimestral ─────────────────────────────
+// "2025-09-01" → "jul-sep 2025"
+function formatearPeriodo(valorPeriodo) {
+    if (!valorPeriodo) return '';
+    var fecha = new Date(valorPeriodo);
+    if (isNaN(fecha.getTime())) return valorPeriodo;
+    var mes = fecha.getUTCMonth() + 1; // UTC para evitar desfases de zona horaria
+    var anyo = fecha.getUTCFullYear();
+    var rangos = { 3: 'ene-mar', 6: 'abr-jun', 9: 'jul-sep', 12: 'oct-dic' };
+    return (rangos[mes] || fecha.toLocaleDateString('es-ES', { month: 'short' })) + ' ' + anyo;
+}
+
+// ── Estado de carga ────────────────────────────────────────────
+function mostrarCargando() {
+    var btn = document.getElementById('btn-aplicar');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Procesando…';
+    }
+    var bar = document.getElementById('map-loading-bar');
+    var overlay = document.getElementById('map-loading-overlay');
+    if (bar) { bar.classList.remove('active'); void bar.offsetWidth; bar.classList.add('active'); }
+    if (overlay) overlay.classList.add('active');
+}
+
+function ocultarCargando() {
+    var btn = document.getElementById('btn-aplicar');
+    if (btn) { btn.disabled = false; btn.textContent = 'Aplicar filtros'; }
+    var bar = document.getElementById('map-loading-bar');
+    var overlay = document.getElementById('map-loading-overlay');
+    if (bar) bar.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+}
+
+// ── Helpers para estadísticas ──────────────────────────────────
+
+// Convierte "CASTILLA Y LEÓN" → "Castilla Y León"
+function toTitleCase(str) {
+    return str.toLowerCase().replace(/(^|\s|-)([a-záéíóúüñ\w])/gi, function(m, pre, chr) {
+        return pre + chr.toUpperCase();
+    });
+}
+
+// Obtiene la tasa nacional de referencia para el periodo/tipología actuales
+async function cargarTasaNacional(periodo, tipologia) {
+    try {
+        var url = API_URL + '/api/mapa/delitos/agregado/nacional?periodo=' + periodo;
+        if (tipologia) url += '&tipologia=' + encodeURIComponent(tipologia);
+        var response = await fetch(url);
+        var data = await response.json();
+        if (data.datos && data.datos.length > 0) {
+            return data.datos[0].tasa_por_mil;
+        }
+        return null;
+    } catch (e) {
+        console.error('Error cargando tasa nacional:', e);
+        return null;
+    }
+}
+
+// Renderiza el bloque de estadísticas en el sidebar
+function actualizarEstadisticas(datos, tasaNacional, nivel) {
+    var section = document.getElementById('stats-section');
+    if (!section) return;
+
+    // Nivel nacional no tiene ranking con sentido
+    if (nivel === 'nacional') {
+        section.style.display = 'none';
+        return;
+    }
+
+    var entries = Object.entries(datos)
+        .map(function(kv) { return { nombre: toTitleCase(kv[0]), tasa: kv[1].tasa_por_mil }; })
+        .filter(function(e) { return e.tasa > 0; })
+        .sort(function(a, b) { return b.tasa - a.tasa; });
+
+    if (entries.length === 0) { section.style.display = 'none'; return; }
+
+    // Promedio simple de tasas del nivel seleccionado
+    var promedio = entries.reduce(function(s, e) { return s + e.tasa; }, 0) / entries.length;
+
+    var fmt = function(v) {
+        return v.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    document.getElementById('stat-promedio').textContent = fmt(promedio);
+    document.getElementById('stat-nacional').textContent = tasaNacional !== null ? fmt(tasaNacional) : '—';
+
+    function renderRanking(containerId, items) {
+        var el = document.getElementById(containerId);
+        if (!el) return;
+        el.innerHTML = items.map(function(e, i) {
+            return '<div class="ranking-item">' +
+                '<span class="ranking-pos">' + (i + 1) + '</span>' +
+                '<span class="ranking-dot" style="background:' + getColor(e.tasa) + ';"></span>' +
+                '<span class="ranking-nombre">' + e.nombre + '</span>' +
+                '<span class="ranking-valor">' + fmt(e.tasa) + '</span>' +
+                '</div>';
+        }).join('');
+    }
+
+    renderRanking('ranking-alto', entries.slice(0, 3));
+    renderRanking('ranking-bajo', entries.slice().reverse().slice(0, 3));
+
+    section.style.display = 'block';
+}
+
+// ── Toggle leyenda ──────────────────────────────────────────────
+
 // Toggle leyenda
 function toggleLegend() {
     const content = document.getElementById('legend-content');
@@ -470,40 +591,39 @@ async function cargarMapa(nivel = 'ccaa') {
 
 // Aplicar filtros seleccionados
 async function aplicarFiltros() {
-    console.log('Aplicando filtros...');
-    
-    // Obtener valores seleccionados
-    const nivelSeleccionado = document.getElementById('nivel-geo').value;
-    const periodoSeleccionado = document.getElementById('periodo').value;
-    const tipologiaSeleccionada = document.getElementById('tipologia').value || null;
-    
-    console.log('Filtros:', {
-        nivel: nivelSeleccionado,
-        periodo: periodoSeleccionado,
-        tipologia: tipologiaSeleccionada
-    });
-    
-    // Cargar nuevos datos
-    datosDelitos = await cargarDatos(nivelSeleccionado, periodoSeleccionado, tipologiaSeleccionada);
-    
-    // Calcular umbrales
-    umbralesToasa = calcularUmbrales(datosDelitos);
-    
-    // Actualizar leyenda
-    actualizarLeyenda();
-    
-    // Recargar mapa
-    await cargarMapa(nivelSeleccionado);
-    
-    // Cerrar panel en móvil
-    if (window.innerWidth <= 768) {
-        const details = document.getElementById('filtros-details');
-        if (details) {
-            details.removeAttribute('open');
+    mostrarCargando();
+    try {
+        // Obtener valores seleccionados
+        const nivelSeleccionado = document.getElementById('nivel-geo').value;
+        const periodoSeleccionado = document.getElementById('periodo').value;
+        const tipologiaSeleccionada = document.getElementById('tipologia').value || null;
+
+        // Cargar nuevos datos
+        datosDelitos = await cargarDatos(nivelSeleccionado, periodoSeleccionado, tipologiaSeleccionada);
+
+        // Calcular umbrales
+        umbralesToasa = calcularUmbrales(datosDelitos);
+
+        // Actualizar leyenda
+        actualizarLeyenda();
+
+        // Recargar mapa
+        await cargarMapa(nivelSeleccionado);
+
+        // Estadísticas: promedio nivel + nacional + ranking
+        var tasaNacional = await cargarTasaNacional(periodoSeleccionado, tipologiaSeleccionada);
+        actualizarEstadisticas(datosDelitos, tasaNacional, nivelSeleccionado);
+
+        // Cerrar panel en móvil
+        if (window.innerWidth <= 768) {
+            var panel = document.getElementById('panel-filtros');
+            var overlay = document.getElementById('menu-overlay');
+            if (panel) panel.classList.remove('open');
+            if (overlay) overlay.classList.remove('active');
         }
+    } finally {
+        ocultarCargando();
     }
-    
-    console.log('Filtros aplicados correctamente');
 }
 
 // Inicializar aplicación
@@ -525,7 +645,12 @@ async function init() {
     
     // Cargar mapa
     await cargarMapa();
-    
+
+    // Estadísticas: promedio nivel + nacional + ranking
+    var periodoInicial = document.getElementById('periodo').value;
+    var tasaNacional = await cargarTasaNacional(periodoInicial, null);
+    actualizarEstadisticas(datosDelitos, tasaNacional, 'ccaa');
+
     // Inicializar leyenda colapsada en móvil
     if (window.innerWidth <= 768) {
         setTimeout(() => {
